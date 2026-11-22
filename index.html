@@ -263,14 +263,17 @@
 <section id="tab-stockists" class="hide">
   <div class="grid2">
     <div class="card">
-      <h2>Register a stockist</h2>
+      <h2 id="stkFormTitle">Register / edit a stockist</h2>
       <div class="row">
-        <input id="sName" placeholder="Stockist name" style="flex:1;min-width:150px" onkeydown="if(event.key==='Enter')$('sPhone').focus()">
+        <input id="sName" list="stkList" placeholder="🔍 Stockist name (type to add or select existing)" style="flex:1.2;min-width:170px" oninput="previewStockistMatch()" onchange="onStockistNamePick()" onkeydown="if(event.key==='Enter')onStockistNameEnter()">
         <input id="sPhone" placeholder="WhatsApp number" style="width:160px" onkeydown="if(event.key==='Enter')$('sLoc').focus()">
         <input id="sLoc" placeholder="Location (optional)" style="flex:1;min-width:140px" onkeydown="if(event.key==='Enter')addStockist()">
-        <button class="b" onclick="addStockist()">Add</button>
+        <button id="sAddBtn" class="b" onclick="addStockist()">Add</button>
+        <button id="sCancelBtn" class="b sec sm hide" onclick="cancelEditStockist()">Cancel</button>
       </div>
-      <p class="mut small">Number: 10 digits (default country code from Settings is added), or full number with country code. Location is optional.</p>
+      <datalist id="stkList"></datalist>
+      <div id="stkMatch" style="margin-top:6px"></div>
+      <p class="mut small">Type an existing stockist name to select &amp; edit its details right here, or enter a new name to register. Number: 10 digits (default country code added), or full number with country code.</p>
     </div>
     <div class="card">
       <h2>Bulk add (paste from Excel)</h2>
@@ -279,7 +282,13 @@
     </div>
   </div>
   <div class="card">
-    <h2>Registered stockists</h2>
+    <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div class="row" style="gap:8px">
+        <h2 style="margin:0">Registered stockists</h2>
+        <input id="stkSearch" placeholder="🔍 Search stockist, phone or location…" oninput="renderStockists()" style="width:260px">
+        <span class="mut small" id="stkCount"></span>
+      </div>
+    </div>
     <div style="overflow:auto"><table><thead><tr><th>Name</th><th>WhatsApp</th><th>Location</th><th>Products mapped</th><th></th></tr></thead><tbody id="stkBody"></tbody></table></div>
   </div>
 </section>
@@ -904,15 +913,183 @@ function printPO(poId){
 }
 
 /* ============================ STOCKISTS ============================ */
-function addStockist(){const n=$('sName').value.trim();if(!n)return toast('Enter name');getOrMakeStockist(n,$('sPhone').value,$('sLoc').value);$('sName').value=$('sPhone').value=$('sLoc').value='';save();renderStockists();renderMap();renderDraft();toast('Stockist saved');$('sName').focus()}
+let editStkId=null;
+function updateStkFormMode(){
+  const editing=editStkId!==null&&stk(editStkId);
+  const btn=$('sAddBtn'),cbtn=$('sCancelBtn'),ttl=$('stkFormTitle');
+  if(btn)btn.textContent=editing?'Update':'Add';
+  if(cbtn)cbtn.classList.toggle('hide',!editing);
+  if(ttl)ttl.textContent=editing?'Edit stockist details':'Register / edit a stockist';
+}
+function selectStockistForEdit(id){
+  const s=stk(id);if(!s)return;
+  editStkId=s.id;
+  $('sName').value=s.name;
+  $('sPhone').value=s.phone||'';
+  $('sLoc').value=s.location||'';
+  updateStkFormMode();
+  const cnt=S.products.filter(p=>(p.offers||[]).some(o=>o.id===s.id)).length;
+  const el=$('stkMatch');
+  if(el){
+    el.innerHTML=`<div class="mp-mapped-box" style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+      <span><span class="tag ok">✏️ Editing: <b>${esc(s.name)}</b></span> <span class="small mut">(${cnt} product${cnt===1?'':'s'} mapped) — edit Name, WhatsApp or Location above and click <b>Update</b>.</span></span>
+      <button type="button" class="b sec sm" onclick="cancelEditStockist()">Cancel</button>
+    </div>`;
+  }
+  $('sPhone').focus();
+  $('sPhone').select();
+  $('tab-stockists').scrollIntoView({behavior:'smooth'});
+}
+function cancelEditStockist(){
+  editStkId=null;
+  $('sName').value='';
+  $('sPhone').value='';
+  $('sLoc').value='';
+  if($('stkMatch'))$('stkMatch').innerHTML='';
+  updateStkFormMode();
+  $('sName').focus();
+}
+function previewStockistMatch(){
+  const el=$('stkMatch');if(!el)return;
+  const v=cleanName($('sName').value);
+  if(!v){
+    if(editStkId!==null){
+      editStkId=null;
+      $('sPhone').value='';
+      $('sLoc').value='';
+      updateStkFormMode();
+    }
+    el.innerHTML='';
+    return;
+  }
+  if(editStkId!==null){
+    const cur=stk(editStkId);
+    if(cur){
+      const cnt=S.products.filter(p=>(p.offers||[]).some(o=>o.id===cur.id)).length;
+      el.innerHTML=`<div class="mp-mapped-box" style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+        <span><span class="tag ok">✏️ Editing: <b>${esc(cur.name)}</b></span> <span class="small mut">(${cnt} product${cnt===1?'':'s'} mapped) — click <b>Update</b> to save changes.</span></span>
+        <button type="button" class="b sec sm" onclick="cancelEditStockist()">Cancel</button>
+      </div>`;
+      return;
+    }else{
+      editStkId=null;
+      updateStkFormMode();
+    }
+  }
+  const nv=norm(v),cv=canon(v);
+  const matches=S.stockists.filter(s=>norm(s.name).includes(nv)||(cv&&canon(s.name).includes(cv))).sort((a,b)=>{
+    const ae=canon(a.name)===cv?0:1,be=canon(b.name)===cv?0:1;
+    if(ae!==be)return ae-be;
+    const as=norm(a.name).startsWith(nv)?0:1,bs=norm(b.name).startsWith(nv)?0:1;
+    return as-bs||a.name.localeCompare(b.name);
+  });
+  if(matches.length){
+    const cntByStk={};
+    S.products.forEach(p=>(p.offers||[]).forEach(o=>{cntByStk[o.id]=(cntByStk[o.id]||0)+1}));
+    const shown=matches.slice(0,8);
+    const rows=shown.map(s=>{
+      const isExact=canon(s.name)===cv;
+      const cnt=cntByStk[s.id]||0;
+      const ph=s.phone?`<span class="tag ok" style="font-size:11px">📞 ${esc(s.phone)}</span>`:'<span class="tag new" style="font-size:11px">No number</span>';
+      const lc=s.location?`<span class="mut small">📍 ${esc(s.location)}</span>`:'';
+      return `<div class="mp-res-row" onclick="selectStockistForEdit(${s.id})" title="Click to select and edit ${esc(s.name)}">
+        <span><b>${esc(s.name)}</b> ${isExact?'<span class="tag sug" style="font-size:10.5px">Already exists</span>':''} ${lc}</span>
+        <span style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">${ph}<span class="mut small">${cnt} prod</span><button type="button" class="b sec sm" style="padding:2px 8px;font-size:11px" onclick="event.stopPropagation();selectStockistForEdit(${s.id})">✏️ Edit</button></span>
+      </div>`;
+    }).join('');
+    const more=matches.length>shown.length?` (showing top ${shown.length} of ${matches.length})`:'';
+    el.innerHTML=`<div class="mp-results">
+      <div class="mp-res-head">Existing stockists found${more} — click one to select &amp; edit its details</div>
+      ${rows}
+    </div>`;
+  }else{
+    el.innerHTML='<span class="mut small">New stockist — enter WhatsApp number &amp; location and click <b>Add</b>.</span>';
+  }
+}
+function onStockistNamePick(){
+  if(editStkId!==null)return;
+  const v=cleanName($('sName').value);
+  if(!v)return;
+  const ex=findStockistByName(v);
+  if(ex && !$('sPhone').value.trim() && !$('sLoc').value.trim()){
+    selectStockistForEdit(ex.id);
+  }
+}
+function onStockistNameEnter(){
+  if(editStkId===null){
+    const v=cleanName($('sName').value);
+    const ex=v?findStockistByName(v):null;
+    if(ex && !$('sPhone').value.trim() && !$('sLoc').value.trim()){
+      selectStockistForEdit(ex.id);
+      return;
+    }
+  }
+  $('sPhone').focus();
+}
+function addStockist(){
+  const n=cleanName($('sName').value);
+  if(!n)return toast('Enter name');
+  const ph=$('sPhone').value.trim();
+  const lc=cleanName($('sLoc').value);
+  if(editStkId!==null){
+    const s=stk(editStkId);
+    if(s){
+      const other=findStockistByName(n);
+      if(other && other.id!==s.id){
+        return toast(`Stockist "${other.name}" already exists — choose another name`);
+      }
+      s.name=n;
+      s.phone=ph;
+      s.location=lc;
+      editStkId=null;
+      $('sName').value=$('sPhone').value=$('sLoc').value='';
+      if($('stkMatch'))$('stkMatch').innerHTML='';
+      updateStkFormMode();
+      save();renderStockists();renderMap();renderDraft();
+      toast(`Updated "${s.name}" ✓`);
+      $('sName').focus();
+      return;
+    }
+    editStkId=null;
+  }
+  const ex=findStockistByName(n);
+  if(ex){
+    if(ph)ex.phone=ph;
+    if(lc)ex.location=lc;
+    $('sName').value=$('sPhone').value=$('sLoc').value='';
+    if($('stkMatch'))$('stkMatch').innerHTML='';
+    updateStkFormMode();
+    save();renderStockists();renderMap();renderDraft();
+    toast(`Updated existing stockist "${ex.name}" ✓`);
+    $('sName').focus();
+    return;
+  }
+  getOrMakeStockist(n,ph,lc);
+  $('sName').value=$('sPhone').value=$('sLoc').value='';
+  if($('stkMatch'))$('stkMatch').innerHTML='';
+  updateStkFormMode();
+  save();renderStockists();renderMap();renderDraft();
+  toast('Stockist saved ✓');
+  $('sName').focus();
+}
 function bulkStockists(){let c=0;$('sBulk').value.split(/\r?\n/).forEach(l=>{const a=splitCSV(l);if(a[0]){getOrMakeStockist(a[0],a[1],a[2]);c++}});$('sBulk').value='';save();renderStockists();renderMap();toast(c+' stockists imported')}
 function renderStockists(){
-  $('stkBody').innerHTML=S.stockists.map(s=>`<tr><td><input value="${esc(s.name)}" onchange="stk(${s.id}).name=cleanName(this.value);save();renderMap()" style="width:100%;min-width:140px"></td>
+  const dlEl=$('stkList');
+  if(dlEl){
+    dlEl.innerHTML=[...S.stockists].sort((a,b)=>a.name.localeCompare(b.name)).map(s=>`<option value="${esc(s.name)}">`).join('');
+  }
+  const cntByStk={};
+  S.products.forEach(p=>(p.offers||[]).forEach(o=>{cntByStk[o.id]=(cntByStk[o.id]||0)+1}));
+  const q=norm($('stkSearch')?.value||'');
+  const list=S.stockists.filter(s=>!q||norm(s.name).includes(q)||norm(s.phone).includes(q)||norm(s.location).includes(q));
+  if($('stkCount'))$('stkCount').textContent=q?`${list.length} of ${S.stockists.length} shown`:`${S.stockists.length} total`;
+  $('stkBody').innerHTML=list.map(s=>`<tr><td><input value="${esc(s.name)}" onchange="stk(${s.id}).name=cleanName(this.value);save();renderMap()" style="width:100%;min-width:140px"></td>
     <td><input value="${esc(s.phone)}" placeholder="WhatsApp number" onchange="stk(${s.id}).phone=this.value.trim();save()" style="width:150px"></td>
     <td><input value="${esc(s.location||'')}" placeholder="Location (optional)" onchange="stk(${s.id}).location=cleanName(this.value);save()" style="width:100%;min-width:120px"></td>
-    <td>${S.products.filter(p=>p.offers.some(o=>o.id===s.id)).length}</td><td><button class="b red sm" onclick="delStockist(${s.id})">Delete</button></td></tr>`).join('')||'<tr><td colspan=5 class="mut">No stockists yet.</td></tr>';
+    <td>${cntByStk[s.id]||0}</td>
+    <td style="white-space:nowrap"><button class="b sec sm" onclick="selectStockistForEdit(${s.id})">Edit</button> <button class="b red sm" onclick="delStockist(${s.id})">Delete</button></td></tr>`).join('')||'<tr><td colspan=5 class="mut">'+(q?'No matching stockists found.':'No stockists yet.')+'</td></tr>';
 }
-function delStockist(id){if(!confirm('Delete this stockist? Its products become unmapped.'))return;mpSel.delete(id);S.stockists=S.stockists.filter(s=>s.id!==id);S.products.forEach(p=>{p.offers=p.offers.filter(o=>o.id!==id);if(p.stockistId===id){p.stockistId=p.offers[0]?p.offers[0].id:null;p.pinned=false}});S.draft.forEach(r=>{if(r.stockistId===id)r.stockistId=null});save();renderStockists();renderMap();renderDraft()}
+function delStockist(id){if(!confirm('Delete this stockist? Its products become unmapped.'))return;if(editStkId===id)cancelEditStockist();mpSel.delete(id);S.stockists=S.stockists.filter(s=>s.id!==id);S.products.forEach(p=>{p.offers=p.offers.filter(o=>o.id!==id);if(p.stockistId===id){p.stockistId=p.offers[0]?p.offers[0].id:null;p.pinned=false}});S.draft.forEach(r=>{if(r.stockistId===id)r.stockistId=null});save();renderStockists();renderMap();renderDraft()}
 
 /* ============================ MAPPING ============================ */
 let mpSel=new Set(),openRowPickId=null,mpShowAll=false,pmShowAll=false,rowPickFilter='',rowPickShowAll=false;
