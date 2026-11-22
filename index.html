@@ -121,6 +121,24 @@
   body.dark .chat-msg{background:#1e293b;border-color:#334155}
   body.dark .chat-msg.me{background:#064e3b;border-color:#15803d;color:#dcfce7}
   details summary{cursor:pointer}
+  .live-pill{display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.16);color:#fff;border:1px solid rgba(255,255,255,.28);border-radius:999px;padding:4px 10px;font:inherit;font-size:12px;font-weight:600;cursor:pointer;transition:.2s}
+  .live-pill:hover{background:rgba(255,255,255,.26)}
+  .live-pill.flash{background:#25d366;color:#053b1b;border-color:#86efac}
+  .live-dot{width:8px;height:8px;border-radius:50%;background:#4ade80;box-shadow:0 0 0 0 rgba(74,222,128,.7);animation:livePulse 2s infinite;flex-shrink:0}
+  .live-pill.flash .live-dot{background:#053b1b}
+  .live-cnt{background:#ef4444;color:#fff;border-radius:999px;padding:0 6px;font-size:11px;line-height:16px;min-width:16px;text-align:center}
+  @keyframes livePulse{0%{box-shadow:0 0 0 0 rgba(74,222,128,.7)}70%{box-shadow:0 0 0 6px rgba(74,222,128,0)}100%{box-shadow:0 0 0 0 rgba(74,222,128,0)}}
+  .live-panel{position:fixed;top:54px;right:16px;width:min(390px,calc(100vw - 32px));max-height:74vh;display:flex;flex-direction:column;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 32px rgba(15,23,42,.22);z-index:80;overflow:hidden}
+  .live-panel.hide{display:none}
+  .live-head{padding:10px 12px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px;background:#f8fafc}
+  .live-sub{padding:7px 12px;font-size:12px;color:var(--mut);border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:8px}
+  .live-list{overflow:auto;padding:8px 10px;display:flex;flex-direction:column;gap:6px;flex:1}
+  .live-item{padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:#fafbfd;font-size:12.5px}
+  .live-item.other{border-color:#9fd6bb;background:#f0fdf4}
+  .live-item-top{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:2px}
+  body.dark .live-head{background:#0f172a}
+  body.dark .live-item{background:#0f172a;border-color:#334155}
+  body.dark .live-item.other{background:#0b2e1f;border-color:#15803d}
 </style>
 </head>
 <body>
@@ -150,6 +168,9 @@
   <h1>💊 Pharmacy PO Maker</h1>
   <span class="small mgr-only" id="hdrStats"></span>
   <span class="sp"></span>
+  <button id="liveBtn" type="button" class="live-pill" onclick="toggleLivePanel()" title="Live sync active across open tabs — click to view live updates">
+    <span class="live-dot"></span><span id="liveTxt">Live</span><span id="liveBadge" class="live-cnt hide">0</span>
+  </button>
   <span id="who" class="small"></span>
   <button class="b sec sm admin-only" onclick="exportBackup()">⬇ Backup</button>
   <button class="b sec sm admin-only" onclick="document.getElementById('restoreFile').click()">⬆ Restore</button>
@@ -157,6 +178,21 @@
   <button id="themeBtn" class="b sec sm" onclick="toggleTheme()" title="Switch Dark / Bright theme">🌙 Dark</button>
   <button class="b sec sm" onclick="logout()">Logout</button>
 </header>
+<div id="livePanel" class="live-panel hide" role="dialog" aria-label="Live Updates">
+  <div class="live-head">
+    <span class="live-dot"></span>
+    <b style="font-size:14px">Live Updates</b>
+    <span style="flex:1"></span>
+    <button type="button" class="b sec sm" onclick="manualLiveSync()">🔄 Sync now</button>
+    <button type="button" class="b red sm mgr-only" onclick="clearLiveLog()">Clear</button>
+    <button type="button" class="b sec sm" onclick="closeLivePanel()" title="Close">✕</button>
+  </div>
+  <div class="live-sub">
+    <span id="liveStatus">Live sync active across open tabs</span>
+    <span id="liveTime"></span>
+  </div>
+  <div id="liveList" class="live-list"></div>
+</div>
 <nav id="nav">
   <button data-t="staff" class="pharm-tab">✍ Order Entry</button>
   <button data-t="po" id="navPo" class="mgr-only">1 · Create Order</button>
@@ -475,16 +511,20 @@ function dedupeCatalog(s){
     });
   }
 }
+const TAB_ID='t_'+Math.random().toString(36).slice(2,10);
 let lastRaw=null;
+let lastSyncAt=Date.now();
+let lastSeenActId=0;
+let lastToastedActId=0;
 function readRaw(){try{return localStorage.getItem(KEY)}catch(e){return null}}
 let S=load();
-function blank(){return{settings:{unit:'Box',pick:'lowest',pins:Object.assign({},DEFAULT_PINS),shop:'INHAERO CLINIC PHARMACY',phone:'',cc:'91',footer:'Kindly confirm availability & rate. Thank you.'},stockists:[],products:[],draft:[],requests:[],staffDrafts:{},messages:[],history:[],seq:0,uid:1}}
+function blank(){return{settings:{unit:'Box',pick:'lowest',pins:Object.assign({},DEFAULT_PINS),shop:'INHAERO CLINIC PHARMACY',phone:'',cc:'91',footer:'Kindly confirm availability & rate. Thank you.'},stockists:[],products:[],draft:[],requests:[],staffDrafts:{},messages:[],history:[],activity:[],seq:0,uid:1}}
 function load(){try{const raw=readRaw();lastRaw=raw;const s=JSON.parse(raw);if(s&&s.settings)return migrate(s)}catch(e){}return blank()}
 function migrate(s){
   s.requests=s.requests||[];s.requests.forEach(q=>{q.status=q.status||'pending';if(q.by==='staff')q.by='pharmacy1'});
   s.staffDrafts=s.staffDrafts||{};if(s.staffDraft&&s.staffDraft.length&&!s.staffDrafts.pharmacy1){s.staffDrafts.pharmacy1=s.staffDraft}delete s.staffDraft;
   s.messages=s.messages||[];
-  s.draft=s.draft||[];s.history=s.history||[];s.settings.pick=s.settings.pick||'lowest';
+  s.draft=s.draft||[];s.history=s.history||[];s.activity=Array.isArray(s.activity)?s.activity.slice(0,50):[];s.settings.pick=s.settings.pick||'lowest';
   const pins=Object.assign({},DEFAULT_PINS,s.settings.pins||{});
   if(!s.settings.pins&&s.settings.adminPin)pins.admin=s.settings.adminPin;
   s.settings.pins=pins;
@@ -499,14 +539,23 @@ function reloadStateOnly(){
   const raw=readRaw();
   if(raw===lastRaw)return false;
   S=load();
+  lastSyncAt=Date.now();
   return true;
 }
-function save(){
+function save(note,type,scope){
+  if(note){
+    S.activity=Array.isArray(S.activity)?S.activity:[];
+    S.activity.unshift({id:uniqId(),at:new Date().toISOString(),by:ROLE||'admin',type:type||'update',scope:scope||'all',text:note,tabId:TAB_ID});
+    if(S.activity.length>50)S.activity=S.activity.slice(0,50);
+  }
   S._rev=Date.now();
+  S._byTab=TAB_ID;
   const raw=JSON.stringify(S);
   try{localStorage.setItem(KEY,raw);lastRaw=raw}catch(e){toast('Could not save to browser storage')}
+  lastSyncAt=Date.now();
   hdr();
-  if(liveCh){try{liveCh.postMessage({t:'upd',rev:S._rev})}catch(e){}}
+  if(typeof renderLiveUI==='function')renderLiveUI();
+  if(liveCh){try{liveCh.postMessage({t:'upd',rev:S._rev,tabId:TAB_ID})}catch(e){}}
 }
 const uid=()=>S.uid++;
 let _lastUniqId=0;
@@ -582,10 +631,10 @@ function addFromPaste(){
   if(!parsed.length)return toast('Nothing to add');
   reloadStateOnly();
   parsed.forEach(p=>addDraft(p.name,p.qty,p.unit));
-  $('pasteBox').value='';save();renderDraft();toast(parsed.length+' lines added')
+  $('pasteBox').value='';save(`Added ${parsed.length} item${parsed.length>1?'s':''} to order draft`,'po');renderDraft();toast(parsed.length+' lines added')
 }
-function quickAdd(){const n=$('qaName').value.trim();if(!n)return;const q=+$('qaQty').value||1,u=$('qaUnit').value;reloadStateOnly();addDraft(n,q,u);$('qaName').value='';$('qaQty').value='';save();renderDraft();$('qaName').focus()}
-function clearDraft(){reloadStateOnly();if(S.draft.length&&!confirm('Clear the whole order list?'))return;reloadStateOnly();S.draft=[];save();renderDraft();$('results').innerHTML='';$('results').dataset.poid=''}
+function quickAdd(){const n=$('qaName').value.trim();if(!n)return;const q=+$('qaQty').value||1,u=$('qaUnit').value;reloadStateOnly();addDraft(n,q,u);$('qaName').value='';$('qaQty').value='';save(`Added "${n}" to order draft`,'po');renderDraft();$('qaName').focus()}
+function clearDraft(){reloadStateOnly();if(S.draft.length&&!confirm('Clear the whole order list?'))return;reloadStateOnly();S.draft=[];save('Cleared order draft','po');renderDraft();$('results').innerHTML='';$('results').dataset.poid=''}
 function stockistOpts(sel){return '<option value="">— choose —</option>'+[...S.stockists].sort((a,b)=>a.name.localeCompare(b.name)).map(s=>`<option value="${s.id}" ${s.id===sel?'selected':''}>${esc(s.name)}${s.phone?'':' (no number)'}</option>`).join('')}
 function rowStockistOpts(r){
   const p=r.productId&&S.products.find(x=>x.id===r.productId);
@@ -605,8 +654,8 @@ function renderRequests(){
   const topBar=list.length>1?`<div class="card pending-bar"><div class="row" style="justify-content:space-between"><b>📋 ${list.length} pending orders from pharmacies</b><button class="b sec sm" onclick="downloadPendingPharmacyPDF()">📄 Download All Pending (PDF)</button></div></div>`:'';
   el.innerHTML=topBar+list.map(q=>`<div class="card req-card"><div class="row" style="justify-content:space-between"><b>📋 ${esc(roleLabel(q.by))} · ${new Date(q.date).toLocaleString()} · ${q.items.length} item${q.items.length>1?'s':''}</b><div class="row"><button class="b sec sm" onclick="downloadSinglePharmacyPDF(${q.id})">📄 PDF</button><button class="b" onclick="importReq(${q.id})">Import into order list</button><button class="b red sm" onclick="dismissReq(${q.id})">Dismiss</button></div></div><div class="small mut" style="margin-top:4px">${q.items.map(i=>esc(i.name)+' – '+i.qty+' '+esc(i.unit||'')).join(' · ')}</div></div>`).join('');
 }
-function importReq(id){reloadStateOnly();const q=S.requests.find(x=>x.id===id);if(!q||(q.status||'pending')!=='pending')return renderRequests();q.items.forEach(i=>addDraft(i.name,i.qty,i.unit));q.status='imported';save();renderDraft();toast(q.items.length+' item'+(q.items.length>1?'s':'')+' imported')}
-function dismissReq(id){if(!confirm('Dismiss this order list?'))return;reloadStateOnly();const q=S.requests.find(x=>x.id===id);if(q)q.status='dismissed';save();renderRequests()}
+function importReq(id){reloadStateOnly();const q=S.requests.find(x=>x.id===id);if(!q||(q.status||'pending')!=='pending')return renderRequests();q.items.forEach(i=>addDraft(i.name,i.qty,i.unit));q.status='imported';save(`Imported ${roleLabel(q.by)} order (${q.items.length} item${q.items.length>1?'s':''})`,'order',normBy(q.by));renderDraft();toast(q.items.length+' item'+(q.items.length>1?'s':'')+' imported')}
+function dismissReq(id){if(!confirm('Dismiss this order list?'))return;reloadStateOnly();const q=S.requests.find(x=>x.id===id);if(q){q.status='dismissed';save(`Dismissed ${roleLabel(q.by)} order list`,'order',normBy(q.by))}renderRequests()}
 function renderDraft(){
   const qaSel=$('qaUnit'),keepQa=qaSel&&($('qaName').value.trim()||document.activeElement===qaSel)?qaSel.value:'';
   $('qaUnit').innerHTML=unitOpts(keepQa||defUnit());renderRequests();
@@ -676,7 +725,7 @@ function generate(){
   const po={id:uid(),no:poNo,date:new Date().toISOString(),groups};
   S.history.unshift(po);
   S.draft=S.draft.filter(r=>!r.stockistId);   // keep only unassigned ones for later
-  save();renderDraft();$('results').dataset.poid=po.id;showPO(po,$('results'),true);
+  save(`Generated ${poNo} (${groups.length} stockist${groups.length>1?'s':''})`,'po');renderDraft();$('results').dataset.poid=po.id;showPO(po,$('results'),true);
   $('results').scrollIntoView({behavior:'smooth'});
 }
 function waURL(g,text){const s=stk(g.stockistId);const ph=(s&&phoneOf(s))||g.phone||'';return `https://wa.me/${ph}?text=${encodeURIComponent(text)}`}
@@ -719,7 +768,7 @@ function openAll(poId){
     if(!curG)return;
     const msgs=buildMessages(curPo.no,curG.name,curG.items);
     window.open(waURL(curG,msgs[0]),'_blank');
-    if(msgs.length===1){curG.sent=true;curG.sentAt=new Date().toISOString();save()}
+    if(msgs.length===1){curG.sent=true;curG.sentAt=new Date().toISOString();save(`Sent ${curPo.no} to ${curG.name} on WhatsApp`,'po')}
   },k*700));
   setTimeout(()=>rerenderPO(poId),list.length*700+200);
   if(hasMulti)toast('Long orders: use their per-part buttons for remaining parts');
@@ -730,9 +779,9 @@ function rerenderPO(poId){
   if(!$('tab-history').classList.contains('hide'))renderHistory();
   else{const h=$('histOpen-'+poId);if(h)showPO(po,h,false)}
 }
-function markSent(poId,gi,v){reloadStateOnly();const po=getPO(poId),g=po&&po.groups[gi];if(!g)return renderHistory();g.sent=v;g.sentAt=v?new Date().toISOString():null;save();rerenderPO(poId)}
+function markSent(poId,gi,v){reloadStateOnly();const po=getPO(poId),g=po&&po.groups[gi];if(!g)return renderHistory();g.sent=v;g.sentAt=v?new Date().toISOString():null;save(`${v?'Marked':'Unmarked'} ${g.name} (${po.no}) as sent`,'po');rerenderPO(poId)}
 function copyMsg(poId,gi){const po=getPO(poId),g=po.groups[gi];navigator.clipboard.writeText(buildMessages(po.no,g.name,g.items).join('\n\n')).then(()=>toast('Copied'))}
-function setNum(poId,gi){const v=$(`np-${poId}-${gi}`).value.trim();if(!v)return;reloadStateOnly();const po=getPO(poId),g=po&&po.groups[gi],s=g&&stk(g.stockistId);if(!s)return;s.phone=v;save();rerenderPO(poId);renderStockists()}
+function setNum(poId,gi){const v=$(`np-${poId}-${gi}`).value.trim();if(!v)return;reloadStateOnly();const po=getPO(poId),g=po&&po.groups[gi],s=g&&stk(g.stockistId);if(!s)return;s.phone=v;save(`Updated WhatsApp number for ${s.name}`,'stockist');rerenderPO(poId);renderStockists()}
 function printPO(poId){
   const po=getPO(poId);const w=window.open('','_blank');
   w.document.write(`<title>${po.no}</title><body style="font:14px sans-serif"><h2>${esc(S.settings.shop)} – ${po.no}</h2>`+po.groups.map(g=>`<h3>${esc(g.name)}</h3><table border=1 cellpadding=5 style="border-collapse:collapse"><tr><th>#</th><th>Product</th><th>Qty</th></tr>${g.items.map((it,i)=>`<tr><td>${i+1}</td><td>${esc(it.name)}</td><td>${it.qty} ${esc(it.unit||'')}</td></tr>`).join('')}</table>`).join('')+'</body>');
@@ -740,14 +789,14 @@ function printPO(poId){
 }
 
 /* ============================ STOCKISTS ============================ */
-function addStockist(){const n=$('sName').value.trim(),ph=$('sPhone').value,loc=$('sLoc').value;if(!n)return toast('Enter name');reloadStateOnly();getOrMakeStockist(n,ph,loc);$('sName').value=$('sPhone').value=$('sLoc').value='';save();renderStockists();renderMap();renderDraft();toast('Stockist saved');$('sName').focus()}
-function bulkStockists(){const raw=$('sBulk').value;reloadStateOnly();let c=0;raw.split(/\r?\n/).forEach(l=>{const a=splitCSV(l);if(a[0]){getOrMakeStockist(a[0],a[1],a[2]);c++}});$('sBulk').value='';save();renderStockists();renderMap();toast(c+' stockists imported')}
+function addStockist(){const n=$('sName').value.trim(),ph=$('sPhone').value,loc=$('sLoc').value;if(!n)return toast('Enter name');reloadStateOnly();getOrMakeStockist(n,ph,loc);$('sName').value=$('sPhone').value=$('sLoc').value='';save(`Added stockist "${n}"`,'stockist');renderStockists();renderMap();renderDraft();toast('Stockist saved');$('sName').focus()}
+function bulkStockists(){const raw=$('sBulk').value;reloadStateOnly();let c=0;raw.split(/\r?\n/).forEach(l=>{const a=splitCSV(l);if(a[0]){getOrMakeStockist(a[0],a[1],a[2]);c++}});$('sBulk').value='';save(c?`Imported ${c} stockist${c>1?'s':''}`:'','stockist');renderStockists();renderMap();toast(c+' stockists imported')}
 function editStockist(id,field,val){
   reloadStateOnly();
   const s=stk(id);if(!s)return renderStockists();
-  if(field==='name'){s.name=cleanName(val);save();renderMap()}
-  else if(field==='phone'){s.phone=String(val||'').trim();save()}
-  else if(field==='location'){s.location=cleanName(val);save()}
+  if(field==='name'){s.name=cleanName(val);save(`Updated stockist "${s.name}"`,'stockist');renderMap()}
+  else if(field==='phone'){s.phone=String(val||'').trim();save(`Updated stockist "${s.name}"`,'stockist')}
+  else if(field==='location'){s.location=cleanName(val);save(`Updated stockist "${s.name}"`,'stockist')}
 }
 function renderStockists(){
   $('stkBody').innerHTML=S.stockists.map(s=>`<tr><td><input value="${esc(s.name)}" onchange="editStockist(${s.id},'name',this.value)" style="width:100%;min-width:140px"></td>
@@ -755,7 +804,7 @@ function renderStockists(){
     <td><input value="${esc(s.location||'')}" placeholder="Location (optional)" onchange="editStockist(${s.id},'location',this.value)" style="width:100%;min-width:120px"></td>
     <td>${S.products.filter(p=>p.offers.some(o=>o.id===s.id)).length}</td><td><button class="b red sm" onclick="delStockist(${s.id})">Delete</button></td></tr>`).join('')||'<tr><td colspan=5 class="mut">No stockists yet.</td></tr>';
 }
-function delStockist(id){if(!confirm('Delete this stockist? Its products become unmapped.'))return;reloadStateOnly();mpSel.delete(id);S.stockists=S.stockists.filter(s=>s.id!==id);S.products.forEach(p=>{p.offers=p.offers.filter(o=>o.id!==id);if(p.stockistId===id){p.stockistId=p.offers[0]?p.offers[0].id:null;p.pinned=false}});S.draft.forEach(r=>{if(r.stockistId===id)r.stockistId=null});save();renderStockists();renderMap();renderDraft()}
+function delStockist(id){if(!confirm('Delete this stockist? Its products become unmapped.'))return;reloadStateOnly();const remS=stk(id);mpSel.delete(id);S.stockists=S.stockists.filter(s=>s.id!==id);S.products.forEach(p=>{p.offers=p.offers.filter(o=>o.id!==id);if(p.stockistId===id){p.stockistId=p.offers[0]?p.offers[0].id:null;p.pinned=false}});S.draft.forEach(r=>{if(r.stockistId===id)r.stockistId=null});save(`Deleted stockist "${remS?remS.name:'#'+id}"`,'stockist');renderStockists();renderMap();renderDraft()}
 
 /* ============================ MAPPING ============================ */
 let mpSel=new Set(),openRowPickId=null;
@@ -817,7 +866,7 @@ function addSingleMap(){
   }
   $('mpName').value='';if($('mpMatch'))$('mpMatch').innerHTML='';
   mpSel.clear();if($('mpStkFilter'))$('mpStkFilter').value='';
-  save();renderMap();renderStockists();renderDraft();toast(msg);$('mpName').focus();
+  save(`Mapped "${p.name}" (${chosen.length} stockist${chosen.length>1?'s':''})`,'map');renderMap();renderStockists();renderDraft();toast(msg);$('mpName').focus();
 }
 function bulkMap(skipReload){
   const raw=$('mapBulk').value;
@@ -833,7 +882,7 @@ function bulkMap(skipReload){
     ensureOffer(p,st.id);
     if(!p.stockistId)p.stockistId=st.id;
   });
-  $('mapBulk').value='';save();renderMap();renderStockists();renderDraft();
+  $('mapBulk').value='';save(created+merged?`Bulk mapped ${created+merged} product${created+merged>1?'s':''}`:'','map');renderMap();renderStockists();renderDraft();
   toast(`${created+merged} mapped (${created} new, ${merged} added to existing)`)
 }
 function mapRowCells(p){
@@ -878,12 +927,12 @@ function toggleRowOffer(pid,sid,checked){
   const p=S.products.find(x=>x.id===pid);if(!p)return renderMap();
   if(checked){ensureOffer(p,sid);if(!p.stockistId)p.stockistId=sid}
   else{p.offers=p.offers.filter(o=>o.id!==sid);if(p.stockistId===sid){p.stockistId=p.offers[0]?p.offers[0].id:null;p.pinned=false}}
-  save();refreshMapRow(p);renderStockists();renderMpStkChips();
+  save(`Updated mapping for "${p.name}"`,'map');refreshMapRow(p);renderStockists();renderMpStkChips();
 }
-function mapSet(id,v){reloadStateOnly();const p=S.products.find(p=>p.id===id);if(!p)return renderMap();p.stockistId=v?+v:null;p.pinned=!!v;if(v)ensureOffer(p,+v);save();refreshMapRow(p);renderStockists()}
-function unpin(id){reloadStateOnly();const p=S.products.find(p=>p.id===id);if(!p)return renderMap();p.pinned=false;save();refreshMapRow(p)}
-function rmOffer(id,sid){reloadStateOnly();const p=S.products.find(p=>p.id===id);if(!p)return renderMap();p.offers=p.offers.filter(o=>o.id!==sid);if(p.stockistId===sid){p.stockistId=p.offers[0]?p.offers[0].id:null;p.pinned=false}save();refreshMapRow(p);renderStockists();renderMpStkChips()}
-function delProduct(id){reloadStateOnly();if(openRowPickId===id)openRowPickId=null;S.products=S.products.filter(p=>p.id!==id);save();renderMap();renderStockists()}
+function mapSet(id,v){reloadStateOnly();const p=S.products.find(p=>p.id===id);if(!p)return renderMap();p.stockistId=v?+v:null;p.pinned=!!v;if(v)ensureOffer(p,+v);save(`Updated default stockist for "${p.name}"`,'map');refreshMapRow(p);renderStockists()}
+function unpin(id){reloadStateOnly();const p=S.products.find(p=>p.id===id);if(!p)return renderMap();p.pinned=false;save(`Unpinned stockist for "${p.name}"`,'map');refreshMapRow(p)}
+function rmOffer(id,sid){reloadStateOnly();const p=S.products.find(p=>p.id===id);if(!p)return renderMap();p.offers=p.offers.filter(o=>o.id!==sid);if(p.stockistId===sid){p.stockistId=p.offers[0]?p.offers[0].id:null;p.pinned=false}save(`Updated mapping for "${p.name}"`,'map');refreshMapRow(p);renderStockists();renderMpStkChips()}
+function delProduct(id){reloadStateOnly();const remP=S.products.find(p=>p.id===id);if(openRowPickId===id)openRowPickId=null;S.products=S.products.filter(p=>p.id!==id);save(`Deleted product "${remP?remP.name:'#'+id}"`,'map');renderMap();renderStockists()}
 function exportMapCSV(){
   const q=t=>`"${String(t).replace(/"/g,'""')}"`;const rows=['Product,Stockist'];
   S.products.forEach(p=>{const o=p.offers.filter(o=>stk(o.id));if(!o.length)rows.push(q(p.name)+',');o.forEach(x=>rows.push(`${q(p.name)},${q(stk(x.id).name)}`))});
@@ -1314,7 +1363,7 @@ function renderHistory(){
     <div id="histOpen-${po.id}" style="margin-top:8px"></div><button class="b red sm" onclick="delPO(${po.id})">Delete record</button></details>`).join('')||`<span class="mut">${histView==='pending'?'All placed orders have been sent.':'No orders yet.'}</span>`);
   list.forEach(po=>{const el=$('histOpen-'+po.id);if(el)showPO(po,el,false)});
 }
-function delPO(id){if(!confirm('Delete this record?'))return;reloadStateOnly();S.history=S.history.filter(p=>p.id!==id);save();renderHistory()}
+function delPO(id){if(!confirm('Delete this record?'))return;reloadStateOnly();const remPo=getPO(id);S.history=S.history.filter(p=>p.id!==id);save(`Deleted ${remPo?remPo.no:'order'} from history`,'po');renderHistory()}
 
 /* ============================ SETTINGS / DATA ============================ */
 function renderSettings(){
@@ -1331,11 +1380,11 @@ function saveSettings(){
   S.settings.pins=Object.assign({},DEFAULT_PINS,S.settings.pins||{});
   for(const k in pinMap){if(pinMap[k])S.settings.pins[k]=pinHash(k,pinMap[k])}
   ['setPinAdmin','setPinMgr','setPinP1','setPinP2','setPinP3'].forEach(id=>$(id).value='');
-  save();toast('Saved')}
+  save('Updated shop & app settings','settings');toast('Saved')}
 function dl(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click()}
 function exportBackup(){if(ROLE!=='admin')return;reloadStateOnly();dl(`po-maker-backup-${new Date().toISOString().slice(0,10)}.json`,JSON.stringify(S),'application/json')}
-function restoreBackup(inp){if(ROLE!=='admin')return;const f=inp.files[0];if(!f)return;f.text().then(t=>{try{const s=JSON.parse(t);if(!s.settings)throw 0;S=migrate(s);save();init();toast('Restored')}catch(e){alert('Invalid backup file')}});inp.value=''}
-function resetAll(){if(ROLE!=='admin')return;const c=prompt('Enter the erase passcode to continue:');if(c===null)return;if(!pinMatch('secure',c.trim(),SECURE_PIN_HASH))return alert('Wrong passcode – nothing was erased.');if(confirm('Erase ALL stockists, products, mapping and history?')){S=blank();save();init();toast('All data erased')}}
+function restoreBackup(inp){if(ROLE!=='admin')return;const f=inp.files[0];if(!f)return;f.text().then(t=>{try{const s=JSON.parse(t);if(!s.settings)throw 0;S=migrate(s);save(`Restored backup (${S.stockists.length} stockists, ${S.products.length} products)`,'data');init();toast('Restored')}catch(e){alert('Invalid backup file')}});inp.value=''}
+function resetAll(){if(ROLE!=='admin')return;const c=prompt('Enter the erase passcode to continue:');if(c===null)return;if(!pinMatch('secure',c.trim(),SECURE_PIN_HASH))return alert('Wrong passcode – nothing was erased.');if(confirm('Erase ALL stockists, products, mapping and history?')){S=blank();save('Erased all data','data');init();toast('All data erased')}}
 function loadSample(){
   if(ROLE!=='admin')return;
   if(!confirm('Add demo stockists and products?'))return;
@@ -1432,7 +1481,7 @@ function staffTick(id){
   if(!r.ticked){
     if(!r.name.trim()){toast('Enter product name first');const ni=$('sn-'+id);if(ni)ni.focus();return}
     r.ticked=true;
-    syncSavedDrafts();save();
+    syncSavedDrafts();save(`Saved "${r.name}" in order draft`,'draft',draftKey());
     const hasBlank=d.some(x=>!x.ticked&&!x.name.trim());
     if(!hasBlank){d.push(blankRow());renderStaff()}
     else{
@@ -1444,7 +1493,7 @@ function staffTick(id){
     toast('Saved ✓');
   }else{
     r.ticked=false;
-    syncSavedDrafts();save();
+    syncSavedDrafts();save(`Unticked "${r.name}" in order draft`,'draft',draftKey());
     const tr=$('sr-'+id),tb=$('st-'+id);
     if(tr)tr.classList.remove('ticked');
     if(tb){tb.classList.remove('on');tb.title='Tick to save item'}
@@ -1490,7 +1539,7 @@ function staffConfirm(){
   liveDrafts[k]=curDraft().filter(r=>!pendingSentIds.has(r.id));
   while(liveDrafts[k].length<5)liveDrafts[k].push(blankRow());
   pendingItems=null;pendingSentIds=null;$('confirmBox').classList.add('hide');
-  syncSavedDrafts();save();renderStaff();toast('Order list sent ✓ ('+n+' item'+(n>1?'s':'')+')');
+  syncSavedDrafts();save(`Sent order list (${n} item${n>1?'s':''})`,'order',normBy(reqObj.by));renderStaff();toast('Order list sent ✓ ('+n+' item'+(n>1?'s':'')+')');
 }
 const DAY_MS=24*60*60*1000;
 const isWithin24h=q=>Date.now()-new Date(q.date).getTime()<DAY_MS;
@@ -1596,7 +1645,9 @@ function sendChatMsg(){
   newMsgs.forEach(m=>S.messages.push(m));
   if(S.messages.length>500)S.messages=S.messages.slice(-500);
   inp.value='';
-  save();renderMessages();inp.focus();
+  const msgScope=isPh?ROLE:(curMsgCh==='all'?'all':curMsgCh);
+  const msgDest=isPh?'Store Manager':(curMsgCh==='all'?'all pharmacies':roleLabel(curMsgCh));
+  save(`Sent message to ${msgDest}`,'msg',msgScope);renderMessages();inp.focus();
   if(!isPh&&curMsgCh==='all')toast('Sent to Pharmacy 1, 2 & 3 ✓');
 }
 function clearChannelMsgs(){
@@ -1606,7 +1657,97 @@ function clearChannelMsgs(){
   const cleared=curMsgCh;
   reloadStateOnly();
   S.messages=(S.messages||[]).filter(m=>m.channel!==cleared);
-  save();renderMessages();toast('Chat cleared');
+  save(`Cleared chat with ${roleLabel(cleared)}`,'msg',cleared);renderMessages();toast('Chat cleared');
+}
+
+/* ---------------- live updates UI ---------------- */
+const ACT_ICONS={order:'📋',po:'📦',stockist:'🏢',map:'🔗',msg:'💬',draft:'✍',settings:'⚙',data:'💾',update:'🔄'};
+let liveFlashTimer=null;
+function visibleActivity(){
+  const list=S.activity||[];
+  if(!ROLE||!ROLES[ROLE])return [];
+  if(ROLES[ROLE].kind!=='pharmacy')return list;
+  return list.filter(a=>!a.scope||a.scope==='all'||a.scope===ROLE);
+}
+function markLiveSeen(){
+  const vis=visibleActivity();
+  if(vis.length){
+    if(vis[0].id>lastSeenActId)lastSeenActId=vis[0].id;
+    if(vis[0].id>lastToastedActId)lastToastedActId=vis[0].id;
+  }
+}
+function relTime(iso){
+  if(!iso)return '';
+  const sec=Math.max(0,Math.floor((Date.now()-new Date(iso).getTime())/1000));
+  if(sec<5)return 'just now';
+  if(sec<60)return sec+'s ago';
+  const min=Math.floor(sec/60);
+  if(min<60)return min+'m ago';
+  const hr=Math.floor(min/60);
+  if(hr<24)return hr+'h ago';
+  return new Date(iso).toLocaleDateString();
+}
+function flashLivePill(){
+  const b=$('liveBtn');if(!b)return;
+  b.classList.add('flash');
+  const txt=$('liveTxt');if(txt)txt.textContent='Updated';
+  clearTimeout(liveFlashTimer);
+  liveFlashTimer=setTimeout(()=>{
+    b.classList.remove('flash');
+    if(txt)txt.textContent='Live';
+  },2200);
+}
+function renderLiveUI(){
+  const panel=$('livePanel'),badge=$('liveBadge'),listEl=$('liveList'),timeEl=$('liveTime');
+  const open=panel&&!panel.classList.contains('hide');
+  const vis=visibleActivity();
+  if(open)markLiveSeen();
+  const unread=vis.filter(a=>a.tabId!==TAB_ID&&a.id>lastSeenActId).length;
+  if(badge){
+    badge.textContent=unread>99?'99+':String(unread);
+    badge.classList.toggle('hide',unread===0);
+  }
+  if(timeEl)timeEl.textContent='Synced '+new Date(lastSyncAt).toLocaleTimeString();
+  if(!open||!listEl)return;
+  listEl.innerHTML=vis.length?vis.map(a=>{
+    const fromOther=a.tabId&&a.tabId!==TAB_ID;
+    const ico=ACT_ICONS[a.type]||'🔄';
+    return `<div class="live-item ${fromOther?'other':''}">
+      <div class="live-item-top">
+        <span>${ico} <b>${esc(roleLabel(a.by))}</b>${fromOther?' <span class="tag ok">other tab</span>':''}</span>
+        <span class="mut small" title="${esc(new Date(a.at).toLocaleString())}">${esc(relTime(a.at))}</span>
+      </div>
+      <div>${esc(a.text)}</div>
+    </div>`;
+  }).join(''):'<span class="mut small" style="padding:8px 2px">No live updates yet. Changes made in this or any other open tab appear here automatically.</span>';
+}
+function toggleLivePanel(){
+  const p=$('livePanel');if(!p)return;
+  if(p.classList.contains('hide')){
+    syncFromStorage(false);
+    p.classList.remove('hide');
+    markLiveSeen();
+    renderLiveUI();
+  }else closeLivePanel();
+}
+function closeLivePanel(){const p=$('livePanel');if(p)p.classList.add('hide')}
+function manualLiveSync(){
+  const changed=syncFromStorage(false);
+  lastSyncAt=Date.now();
+  markLiveSeen();
+  renderLiveUI();
+  flashLivePill();
+  toast(changed?'Synced latest changes ✓':'Already up to date ✓');
+}
+function clearLiveLog(){
+  if(ROLE!=='admin'&&ROLE!=='manager')return;
+  reloadStateOnly();
+  S.activity=[];
+  lastSeenActId=0;
+  lastToastedActId=0;
+  save();
+  renderLiveUI();
+  toast('Live updates log cleared');
 }
 
 /* ---------------- login / roles ---------------- */
@@ -1657,6 +1798,7 @@ function refreshVisibleUI(force){
     if(force||!isEditingIn('tab-settings'))renderSettings();else deferred=true;
   }
   pendingUiRefresh=deferred;
+  renderLiveUI();
 }
 function syncFromStorage(silentRender){
   const dark=readTheme();
@@ -1664,9 +1806,22 @@ function syncFromStorage(silentRender){
   const raw=readRaw();
   if(raw===lastRaw)return false;
   S=load();
+  lastSyncAt=Date.now();
+  const fromOtherTab=S._byTab&&S._byTab!==TAB_ID;
+  const newlyArrived=ROLE?visibleActivity().filter(a=>a.tabId!==TAB_ID&&a.id>lastToastedActId):[];
   if(ROLE)purgeOldRequests();
-  if(!silentRender)refreshVisibleUI(false);
-  else hdr();
+  if(!silentRender){
+    refreshVisibleUI(false);
+    if(ROLE&&fromOtherTab&&newlyArrived.length){
+      lastToastedActId=Math.max(lastToastedActId,newlyArrived[0].id);
+      flashLivePill();
+      const panelOpen=$('livePanel')&&!$('livePanel').classList.contains('hide');
+      if(!panelOpen)toast('🔄 Live: '+roleLabel(newlyArrived[0].by)+' — '+newlyArrived[0].text);
+    }
+  }else{
+    hdr();
+    renderLiveUI();
+  }
   return true;
 }
 function showTab(t){
@@ -1695,16 +1850,16 @@ function doLogin(){
   if(pinMatch(loginRole,v,pins[loginRole])){ROLE=loginRole;sessionStorage.setItem('po_role',ROLE);$('lgPin').value='';applyRole()}
   else{$('lgErr').textContent='Wrong passcode';$('lgPin').value='';$('lgPin').focus()}
 }
-function logout(){ROLE=null;liveDrafts={};sessionStorage.removeItem('po_role');applyRole()}
+function logout(){ROLE=null;liveDrafts={};lastSeenActId=0;lastToastedActId=0;closeLivePanel();sessionStorage.removeItem('po_role');applyRole()}
 function applyRole(){
   const info=ROLE&&ROLES[ROLE];
   document.body.classList.remove('role-admin','role-manager','role-pharmacy');
   if(info)document.body.classList.add('role-'+info.kind);
   $('login').classList.toggle('hide',!!info);$('confirmBox').classList.add('hide');
   $('who').textContent=info?('👤 '+info.label):'';
-  if(info){init();showTab(info.home)}else{pickRole('admin')}
+  if(info){init();showTab(info.home)}else{closeLivePanel();pickRole('admin')}
 }
-function init(){syncFromStorage(true);liveDrafts={};purgeOldRequests();hdr();renderDraft();renderStockists();renderMap();renderSettings();renderStaff();updateMsgBadges();$('results').innerHTML='';$('results').dataset.poid=''}
+function init(){syncFromStorage(true);liveDrafts={};purgeOldRequests();hdr();renderDraft();renderStockists();renderMap();renderSettings();renderStaff();updateMsgBadges();$('results').innerHTML='';$('results').dataset.poid='';markLiveSeen();renderLiveUI()}
 window.addEventListener('storage',e=>{
   if(e.key===THEME_KEY){lastTheme=readTheme();applyTheme(lastTheme);return}
   if(e.key===KEY||e.key===null)syncFromStorage(false);
@@ -1725,8 +1880,14 @@ document.addEventListener('focusout',()=>{
   if(!pendingUiRefresh)return;
   setTimeout(()=>{if(pendingUiRefresh)refreshVisibleUI(false)},60);
 });
+document.addEventListener('click',e=>{
+  const p=$('livePanel'),b=$('liveBtn');
+  if(p&&!p.classList.contains('hide')&&!p.contains(e.target)&&(!b||!b.contains(e.target)))closeLivePanel();
+});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeLivePanel()});
 applyRole();
 setInterval(()=>{syncFromStorage(false)},1000);
+setInterval(()=>{if($('livePanel')&&!$('livePanel').classList.contains('hide'))renderLiveUI()},15000);
 setInterval(()=>{if(!ROLE)return;syncFromStorage(true);purgeOldRequests();if(!$('tab-staff').classList.contains('hide'))renderStaffHistory()},60*1000);
 </script>
 </body>
