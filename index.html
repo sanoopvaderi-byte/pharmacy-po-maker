@@ -1,0 +1,1806 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pharmacy PO Maker – Stockist-wise WhatsApp Orders</title>
+<style>
+  :root{--bg:#f4f6fb;--card:#fff;--ink:#1c2433;--mut:#6b778c;--pri:#0b7a4b;--pri2:#0a6540;--line:#e1e6ef;--bad:#c62828;--warn:#b26a00;--info:#1565c0}
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.45 "Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+  header{background:var(--pri);color:#fff;padding:10px 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+  header h1{font-size:18px;margin:0;font-weight:600}
+  header .sp{flex:1}
+  nav{display:flex;gap:4px;background:#fff;border-bottom:1px solid var(--line);padding:0 14px;position:sticky;top:0;z-index:5}
+  nav button{border:0;background:none;padding:12px 16px;font-size:14px;cursor:pointer;color:var(--mut);border-bottom:3px solid transparent}
+  nav button.on{color:var(--pri);border-color:var(--pri);font-weight:600}
+  main{max-width:1200px;margin:16px auto;padding:0 16px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px}
+  .card h2{font-size:15px;margin:0 0 10px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:800px){.grid2{grid-template-columns:1fr}}
+  textarea,input,select{font:inherit;padding:7px 9px;border:1px solid #cbd3e1;border-radius:6px;background:#fff;color:var(--ink)}
+  textarea{width:100%;min-height:140px;resize:vertical}
+  input:focus,select:focus,textarea:focus{outline:2px solid #9fd6bb;border-color:var(--pri)}
+  button.b{background:var(--pri);color:#fff;border:0;border-radius:6px;padding:8px 14px;cursor:pointer;font:inherit;font-weight:600}
+  button.b:hover{background:var(--pri2)}
+  button.b.sec{background:#e9eef6;color:var(--ink)}
+  button.b.sec:hover{background:#dbe3ef}
+  button.b.wa{background:#25d366;color:#053b1b}
+  button.b.wa:hover{background:#1fb858}
+  button.b.red{background:#fdecea;color:var(--bad)}
+  button.b.sm{padding:4px 9px;font-size:12px}
+  table{border-collapse:collapse;width:100%}
+  th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle}
+  th{font-size:12px;color:var(--mut);text-transform:uppercase;letter-spacing:.03em;background:#fafbfd}
+  .stk th{position:sticky;top:0;z-index:2}
+  tr.unmapped td{background:#fff5f4}
+  tr.fuzzy td{background:#fffaf0}
+  .tag{display:inline-block;font-size:11px;padding:1px 7px;border-radius:10px;font-weight:600}
+  .tag.ok{background:#e3f6ec;color:var(--pri)} .tag.new{background:#fdecea;color:var(--bad)} .tag.sug{background:#fff1d6;color:var(--warn)}
+  .mut{color:var(--mut)} .small{font-size:12px}
+  .hint{background:#eef5ff;border:1px solid #cfe1fb;color:#1b4a8a;border-radius:8px;padding:8px 12px;font-size:13px;margin-bottom:10px}
+  .stats{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0}
+  .stat{background:#f1f5fb;border-radius:8px;padding:6px 12px;font-size:13px}
+  .stat b{font-size:16px}
+  .msg{white-space:pre-wrap;font-family:Consolas,monospace;font-size:12.5px;background:#e7fbe9;border:1px solid #c4ebc8;border-radius:8px;padding:10px;max-height:240px;overflow:auto}
+  .pocard{border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:12px;background:#fff}
+  .pocard.sent{border-color:#9fd6bb;background:#f6fcf9}
+  .pocard header{background:none;color:inherit;padding:0 0 8px;gap:10px}
+  .num{width:70px} .qty{width:80px}
+  .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#1c2433;color:#fff;padding:9px 16px;border-radius:8px;opacity:0;transition:.25s;pointer-events:none;z-index:50}
+  .toast.show{opacity:1}
+  .hide{display:none}
+  button.b.sec.on,button.b.sec.on:hover{background:var(--pri);color:#fff}
+  body:not(.role-admin) .admin-only{display:none!important}
+  body.role-pharmacy .mgr-only{display:none!important}
+  body.role-manager .pharm-tab{display:none!important}
+  .role-grid{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin-bottom:12px}
+  .role-grid button{min-width:105px}
+  #login{position:fixed;inset:0;z-index:100;background:linear-gradient(135deg,#0b7a4b,#0a3d5c);display:flex;align-items:center;justify-content:center}
+  #login.hide{display:none}
+  .modal{position:fixed;inset:0;z-index:90;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center}
+  .modal.hide{display:none}
+  .codebox{font:12px/1.45 Consolas,monospace;background:#f8fafc;border:1px solid var(--line);border-radius:6px;padding:10px;max-height:220px;overflow:auto;white-space:pre;margin-top:8px}
+  .pill-ok{background:#e3f6ec!important;color:#085d38!important}
+  .pill-warn{background:#fff1d6!important;color:#8a5000!important}
+  .pill-bad{background:#fdecea!important;color:#b71c1c!important}
+  tr.ticked td{background:#eefaf3}
+  .tick-btn{width:28px;height:28px;border-radius:6px;border:1.5px solid #cbd3e1;background:#fff;color:#9aa5b4;font-size:15px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0;transition:.15s}
+  .tick-btn:hover{border-color:var(--pri);color:var(--pri)}
+  .tick-btn.on{background:var(--pri);border-color:var(--pri);color:#fff}
+  .login-wm{position:absolute;right:24px;bottom:18px;width:min(148px,36vw);height:auto;opacity:.42;pointer-events:none;user-select:none}
+  .theme-login{position:absolute;top:16px;right:18px}
+  .sub-bar{background:#f8fafc;padding:10px 12px;border-radius:8px;border:1px solid var(--line)}
+  .req-card{border-color:#f0c36d;background:#fffaf0}
+  .pending-bar{border-color:#cfe1fb;background:#eef5ff;padding:10px 14px}
+  body.dark{--bg:#0f172a;--card:#1e293b;--ink:#f1f5f9;--mut:#94a3b8;--pri:#0f9d68;--pri2:#059669;--line:#334155;--bad:#f87171;--warn:#fbbf24}
+  body.dark header{background:#064e3b}
+  body.dark nav{background:#1e293b;border-bottom-color:#334155}
+  body.dark nav button.on{color:#34d399;border-color:#34d399}
+  body.dark textarea,body.dark input,body.dark select{background:#0f172a;color:#f1f5f9;border-color:#475569}
+  body.dark input:focus,body.dark select:focus,body.dark textarea:focus{outline-color:#065f46;border-color:#10b981}
+  body.dark button.b.sec{background:#334155;color:#f1f5f9}
+  body.dark button.b.sec:hover{background:#475569}
+  body.dark button.b.sec.on,body.dark button.b.sec.on:hover{background:#0f9d68;color:#fff}
+  body.dark button.b.red{background:#451a1a;color:#fca5a5}
+  body.dark th{background:#0f172a;color:#94a3b8}
+  body.dark tr.unmapped td{background:#3b1c1c}
+  body.dark tr.fuzzy td{background:#3b2f14}
+  body.dark tr.ticked td{background:#103326}
+  body.dark .tick-btn{background:#0f172a;border-color:#475569;color:#64748b}
+  body.dark .tick-btn:hover{border-color:#34d399;color:#34d399}
+  body.dark .tick-btn.on{background:#0f9d68;border-color:#0f9d68;color:#fff}
+  body.dark .tag.ok{background:#064e3b;color:#6ee7b7}
+  body.dark .tag.new{background:#451a1a;color:#fca5a5}
+  body.dark .tag.sug{background:#422006;color:#fcd34d}
+  body.dark .hint{background:#172554;border-color:#1e3a8a;color:#bfdbfe}
+  body.dark .stat{background:#0f172a;border:1px solid #334155}
+  body.dark .msg{background:#0b2e1f;border-color:#166534;color:#dcfce7}
+  body.dark .pocard{background:#1e293b;border-color:#334155}
+  body.dark .pocard.sent{background:#0f2920;border-color:#15803d}
+  body.dark .codebox{background:#0f172a;border-color:#334155;color:#e2e8f0}
+  body.dark .sub-bar{background:#0f172a;border-color:#334155}
+  body.dark .req-card{border-color:#92400e;background:#291d0a}
+  body.dark .pending-bar{border-color:#1e3a8a;background:#172554}
+  body.dark .pill-ok{background:#064e3b!important;color:#6ee7b7!important}
+  body.dark .pill-warn{background:#422006!important;color:#fcd34d!important}
+  body.dark .pill-bad{background:#451a1a!important;color:#fca5a5!important}
+  body.dark #login{background:linear-gradient(135deg,#042f2e,#0f172a)}
+  body.dark a{color:#60a5fa}
+  body.dark .toast{background:#f1f5f9;color:#0f172a}
+  .stk-pick{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+  .stk-chip{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:16px;border:1px solid #cbd3e1;background:#fff;color:var(--ink);cursor:pointer;font-size:12.5px;user-select:none;transition:.12s}
+  .stk-chip:hover{border-color:var(--pri)}
+  .stk-chip.on{background:#e3f6ec;border-color:var(--pri);color:#085d38;font-weight:600}
+  .stk-chip input{margin:0;accent-color:var(--pri);cursor:pointer}
+  .row-pick{margin-top:6px;padding:8px;border-radius:8px;border:1px solid var(--line);background:#f8fafc}
+  body.dark .stk-chip{background:#0f172a;border-color:#475569;color:#e2e8f0}
+  body.dark .stk-chip:hover{border-color:#34d399}
+  body.dark .stk-chip.on{background:#064e3b;border-color:#10b981;color:#6ee7b7}
+  body.dark .row-pick{background:#0f172a;border-color:#334155}
+  details summary{cursor:pointer}
+</style>
+</head>
+<body>
+<div id="confirmBox" class="modal hide"><div class="card" style="width:min(520px,92vw);max-height:80vh;overflow:auto;margin:0">
+  <h2 style="font-size:17px">Send this order list?</h2><div id="confirmList"></div>
+  <div class="row" style="margin-top:14px;justify-content:flex-end"><button class="b sec" onclick="staffCancel()">No, go back</button><button class="b" onclick="staffConfirm()">Yes, send</button></div>
+</div></div>
+<div id="drivePinBox" class="modal hide"><div class="card" style="width:min(340px,92vw);text-align:center;padding:22px;margin:0">
+  <div style="font-size:30px">🔒</div>
+  <h2 style="font-size:17px;margin-top:4px">Google Drive Passcode</h2>
+  <p class="mut small">Enter passcode to open Google Drive options</p>
+  <input id="drvPinIn" type="password" inputmode="numeric" autocomplete="off" placeholder="Passcode" style="width:100%;text-align:center;font-size:20px;letter-spacing:6px" onkeydown="if(event.key==='Enter')submitDrivePin()">
+  <div id="drvPinErr" style="color:var(--bad);min-height:20px" class="small"></div>
+  <div class="row" style="justify-content:center;margin-top:6px"><button class="b sec" onclick="cancelDrivePin()">Cancel</button><button class="b" onclick="submitDrivePin()">Unlock</button></div>
+</div></div>
+<div id="login">
+  <button id="themeBtnLogin" class="b sec sm theme-login" onclick="toggleTheme()">🌙 Dark</button>
+  <div class="card" style="width:min(390px,94vw);text-align:center;padding:24px;margin:0">
+  <div style="font-size:38px">💊</div><h2 style="font-size:18px">Pharmacy PO Maker</h2>
+  <p class="mut small">Choose login ID and enter passcode</p>
+  <div class="role-grid" id="roleBtns">
+    <button data-r="pharmacy1" class="b sec" onclick="pickRole('pharmacy1')">Pharmacy 1</button>
+    <button data-r="pharmacy2" class="b sec" onclick="pickRole('pharmacy2')">Pharmacy 2</button>
+    <button data-r="pharmacy3" class="b sec" onclick="pickRole('pharmacy3')">Pharmacy 3</button>
+    <button data-r="manager" class="b sec" onclick="pickRole('manager')">Store Manager</button>
+    <button data-r="admin" class="b sec on" onclick="pickRole('admin')">Admin</button>
+  </div>
+  <input id="lgPin" type="password" inputmode="numeric" autocomplete="off" placeholder="Passcode" style="width:100%;text-align:center;font-size:20px;letter-spacing:6px" onkeydown="if(event.key==='Enter')doLogin()">
+  <div id="lgErr" style="color:var(--bad);min-height:22px" class="small"></div>
+  <button class="b" style="width:100%" onclick="doLogin()">Login</button>
+</div>
+  <img id="loginWm" class="login-wm" alt="" aria-hidden="true">
+</div>
+<header>
+  <h1>💊 Pharmacy PO Maker</h1>
+  <span class="small mgr-only" id="hdrStats"></span>
+  <span class="sp"></span>
+  <span id="who" class="small"></span>
+  <button id="drivePill" class="b sec sm admin-only" onclick="drivePillClick()" title="Google Drive auto-backup">☁ Drive: Setup</button>
+  <button id="driveOpenHdr" class="b sec sm admin-only" onclick="openDriveFolder()" title="Open Google Drive backup folder">📂 Drive ↗</button>
+  <button class="b sec sm admin-only" onclick="exportBackup()">⬇ Backup</button>
+  <button class="b sec sm admin-only" onclick="document.getElementById('restoreFile').click()">⬆ Restore</button>
+  <input type="file" id="restoreFile" class="hide" accept=".json" onchange="restoreBackup(this)">
+  <button id="themeBtn" class="b sec sm" onclick="toggleTheme()" title="Switch Dark / Bright theme">🌙 Dark</button>
+  <button class="b sec sm" onclick="logout()">Logout</button>
+</header>
+<nav id="nav">
+  <button data-t="staff" class="pharm-tab">✍ Order Entry</button>
+  <button data-t="po" id="navPo" class="mgr-only">1 · Create Order</button>
+  <button data-t="stockists" class="mgr-only">2 · Stockists</button>
+  <button data-t="map" class="mgr-only">3 · Product → Stockist Mapping</button>
+  <button data-t="history" class="mgr-only">History</button>
+  <button data-t="settings" class="admin-only">Settings</button>
+</nav>
+
+<main>
+<!-- ===================== CREATE ORDER ===================== -->
+<section id="tab-staff" class="hide">
+  <div class="card">
+    <h2 id="staffTitle">✍ Needed / short products</h2>
+    <div class="hint">Enter each product &amp; quantity, then click the small <b>✓</b> tick button to save it. <b>Ticked items stay saved even if you close or refresh the page.</b> When ready, press <b>Send order list</b>.</div>
+    <div style="overflow:auto"><table>
+      <thead><tr><th>#</th><th>Product name</th><th>Qty</th><th>Unit</th><th>Stockist (auto)</th><th style="width:48px;text-align:center">Save</th><th></th></tr></thead>
+      <tbody id="staffBody"></tbody></table></div>
+    <div class="row" style="margin-top:10px"><button class="b sec" onclick="staffAddRow()">+ Add row</button><button class="b" onclick="staffSubmit()">Send order list ➜</button><span id="staffSaved"></span><span class="mut small" id="staffInfo"></span></div>
+  </div>
+  <div class="card">
+    <h2 id="staffHistTitle">📜 Order history <span class="mut small" style="font-weight:400">(auto-removed after 24 hrs)</span></h2>
+    <div class="stk" style="overflow:auto;max-height:420px"><table>
+      <thead><tr><th>Date &amp; time</th><th class="admin-only">From</th><th>Product</th><th>Qty</th><th>Unit</th><th>Stockist</th><th>Status</th></tr></thead>
+      <tbody id="staffHist"></tbody></table></div>
+  </div>
+</section>
+
+<section id="tab-po" class="hide">
+  <div id="reqBox"></div>
+  <div class="card">
+    <h2>Step 1 – Enter the products you need to order</h2>
+    <div class="hint">Type or paste the list from your book / Excel – one product per line. Put the quantity after a comma, <b>x</b> or dash, e.g.
+      <code>Dolo 650, 20</code> &nbsp; <code>Pan 40 x 10</code> &nbsp; <code>Azithral 500 - 5</code>. (No quantity = 1.) Quantities are in <b>boxes</b> by default – write a unit to override, e.g. <code>Dolo 650, 5 strip</code>. Change the default unit in Settings.</div>
+    <textarea id="pasteBox" placeholder="Dolo 650, 20&#10;Pan 40 x 10&#10;Azithral 500 - 5&#10;..."></textarea>
+    <div class="row" style="margin-top:8px">
+      <button class="b" onclick="addFromPaste()">Add to order list ➜ auto-map stockists</button>
+      <span class="mut small">or quick add:</span>
+      <input id="qaName" list="prodList" placeholder="Search product…" style="width:240px" onkeydown="if(event.key==='Enter')document.getElementById('qaQty').focus()">
+      <input id="qaQty" class="qty" type="number" min="1" placeholder="Qty" onkeydown="if(event.key==='Enter')quickAdd()"><select id="qaUnit"></select>
+      <button class="b sec" onclick="quickAdd()">+ Add</button>
+      <datalist id="prodList"></datalist>
+    </div>
+  </div>
+
+  <div class="card" id="draftCard">
+    <div class="row" style="justify-content:space-between">
+      <h2 style="margin:0">Step 2 – Review mapping</h2>
+      <div class="row">
+        <label class="small"><input type="checkbox" id="remember" checked> Remember my stockist choice for next time</label>
+        <button class="b red sm" onclick="clearDraft()">Clear list</button>
+      </div>
+    </div>
+    <div class="stats" id="draftStats"></div>
+    <div style="overflow:auto"><table>
+      <thead><tr><th>#</th><th>You typed</th><th>Product in master</th><th>Qty</th><th>Unit</th><th>Stockist</th><th></th></tr></thead>
+      <tbody id="draftBody"></tbody>
+    </table></div>
+    <div class="row" style="margin-top:12px">
+      <button class="b" onclick="generate()">Step 3 – Generate stockist-wise orders ➜</button>
+      <span class="mut small">Rows without a stockist are skipped – choose one in the dropdown (it is saved for next time).</span>
+    </div>
+  </div>
+
+  <div id="results"></div>
+</section>
+
+<!-- ===================== STOCKISTS ===================== -->
+<section id="tab-stockists" class="hide">
+  <div class="grid2">
+    <div class="card">
+      <h2>Register a stockist</h2>
+      <div class="row">
+        <input id="sName" placeholder="Stockist name" style="flex:1;min-width:160px">
+        <input id="sPhone" placeholder="WhatsApp number" style="width:170px">
+        <button class="b" onclick="addStockist()">Add</button>
+      </div>
+      <p class="mut small">Number: 10 digits (default country code from Settings is added), or full number with country code.</p>
+    </div>
+    <div class="card">
+      <h2>Bulk add (paste from Excel)</h2>
+      <textarea id="sBulk" style="min-height:70px" placeholder="Name, WhatsApp number&#10;Sujith Pharma, 9847000000"></textarea>
+      <button class="b sec" style="margin-top:6px" onclick="bulkStockists()">Import</button>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Registered stockists</h2>
+    <table><thead><tr><th>Name</th><th>WhatsApp</th><th>Products mapped</th><th></th></tr></thead><tbody id="stkBody"></tbody></table>
+  </div>
+</section>
+
+<!-- ===================== MAPPING ===================== -->
+<section id="tab-map" class="hide">
+  <div class="card">
+    <h2>Add / map a product to stockists</h2>
+    <div class="hint">Type or choose a product name, then tick <b>one or multiple stockists</b> below at the same time and click <b>+ Add / Map</b>. Extra/missing spaces or CAPITAL/small letters (e.g. <code>Dolo 650</code>, <code>dolo650</code>) are matched automatically as one product.</div>
+    <div class="row">
+      <input id="mpName" list="prodList" placeholder="Product name (e.g. Dolo 650)" style="flex:1;min-width:200px" oninput="previewMapMatch()" onkeydown="if(event.key==='Enter')addSingleMap()">
+      <input id="mpStkFilter" placeholder="Filter stockists…" style="width:170px" oninput="renderMpStkChips()">
+      <button id="mpAddBtn" class="b" onclick="addSingleMap()">+ Add / Map</button>
+      <button class="b sec sm" onclick="clearMpSel()">Clear</button>
+    </div>
+    <div id="mpMatch" class="small mut" style="margin-top:6px;min-height:18px"></div>
+    <div id="mpStkList" class="stk-pick"></div>
+  </div>
+  <div class="card">
+    <h2>Bulk map products to stockists</h2>
+    <div class="hint">Paste lines as <code>Product name, Stockist name</code>. Repeat the product on another line (or import again later with another supplier) to add more stockists to the same product — duplicates are prevented automatically.
+      Stockists not registered yet are created automatically (add their WhatsApp number later).</div>
+    <textarea id="mapBulk" style="min-height:90px" placeholder="Dolo 650, Sujith Pharma&#10;Pan 40, KP &amp; KC Enterprises"></textarea>
+    <div class="row" style="margin-top:6px">
+      <button class="b" onclick="bulkMap()">Import mapping</button>
+      <button class="b sec" onclick="exportMapCSV()">⬇ Export mapping CSV</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="row" style="margin-bottom:8px">
+      <h2 style="margin:0">Product master</h2>
+      <input id="mapSearch" placeholder="Search…" oninput="renderMap()" style="width:220px">
+      <label class="small"><input type="checkbox" id="mapUnm" onchange="renderMap()"> Show only unmapped</label>
+      <span class="mut small" id="mapCount"></span>
+    </div>
+    <div class="stk" style="overflow:auto;max-height:600px"><table>
+      <thead><tr><th>Product</th><th>Default stockist</th><th>All stockists for this product</th><th></th></tr></thead><tbody id="mapBody"></tbody></table></div>
+  </div>
+</section>
+
+<!-- ===================== HISTORY ===================== -->
+<section id="tab-history" class="hide">
+  <div class="card">
+    <div class="row" style="justify-content:space-between;margin-bottom:10px">
+      <h2 style="margin:0">Order History</h2>
+      <div class="row">
+        <button id="hfAll" class="b sec sm on" onclick="setHistView('all')">Order Placed History</button>
+        <button id="hfSent" class="b sec sm" onclick="setHistView('sent')">Sent Order History</button>
+        <button id="hfPend" class="b sec sm" onclick="setHistView('pending')">Not Sent Yet</button>
+        <button id="hfPharm" class="b sec sm" onclick="setHistView('pharmacy')">Pharmacy Orders</button>
+      </div>
+    </div>
+    <div id="histBody"></div>
+  </div>
+</section>
+
+<!-- ===================== SETTINGS ===================== -->
+<section id="tab-settings" class="hide">
+  <div class="card">
+    <div class="row" style="justify-content:space-between;margin-bottom:8px">
+      <h2 style="margin:0">☁ Google Drive Backup (Auto-Sync)</h2>
+      <div class="row">
+        <span id="drvBadge" class="tag sug">Not linked</span>
+        <button id="btnLockDrive" class="b sec sm hide" onclick="lockDrive()">🔒 Lock</button>
+      </div>
+    </div>
+    <div id="driveLocked" class="row sub-bar" style="justify-content:space-between;padding:12px">
+      <span class="small mut">🔒 Google Drive setup, sync keys, backup &amp; restore options are locked.</span>
+      <button class="b" onclick="requireDriveUnlock()">🔒 Unlock Drive Options</button>
+    </div>
+    <div id="driveBody" class="hide">
+    <div class="hint">Automatically backs up <b>everything</b> to your Google Drive: <b>Supplier details</b>, <b>Product mapping</b>, <b>Order placed history</b>, <b>Sent order history</b>, <b>Staff lists</b>, and <b>Settings</b> — saved as a full restore file, daily snapshots, and a readable Google Sheet.</div>
+    <details id="driveGuide" open style="margin-bottom:12px">
+      <summary><b>One-time 1-minute setup (free, connects directly to your Google Drive)</b></summary>
+      <ol class="small" style="margin:8px 0 8px 18px;line-height:1.7">
+        <li>Open <a href="https://script.google.com/home/start" target="_blank" rel="noopener"><b>script.google.com</b></a> (signed in to your Google Drive account) and click <b>New project</b>.</li>
+        <li>Click <b>📋 Copy Apps Script</b> below, delete any default text in <code>Code.gs</code>, and paste the copied code.</li>
+        <li>Click <b>Deploy → New deployment</b> → gear icon → <b>Web app</b>. Set <b>Execute as: Me</b> and <b>Who has access: Anyone</b>. Click <b>Deploy</b> and approve Google permissions.</li>
+        <li>Copy the <b>Web app URL</b> (<code>https://script.google.com/macros/s/…/exec</code>), paste it below, and click <b>Save &amp; Connect Drive</b>.</li>
+      </ol>
+      <div class="row">
+        <button class="b sec sm" onclick="copyAppsScript()">📋 Copy Apps Script</button>
+        <button class="b sec sm" onclick="downloadAppsScript()">⬇ Download Code.gs</button>
+        <button class="b sec sm" onclick="toggleScriptPreview()">👁 Show / Hide Script</button>
+      </div>
+      <pre id="driveScriptPreview" class="codebox hide"></pre>
+    </details>
+    <div class="grid2">
+      <label>Apps Script Web App URL<br><input id="drvUrl" placeholder="https://script.google.com/macros/s/.../exec" style="width:100%"></label>
+      <label>Google Drive Folder Name<br><input id="drvFolder" placeholder="Pharmacy PO Maker Backups" style="width:100%"></label>
+      <label>Sync Secret Key <span class="mut small">(matches script)</span><br><div class="row" style="gap:6px"><input id="drvSecret" style="flex:1"><button class="b sec sm" onclick="regenDriveSecret()">New key</button></div></label>
+      <label style="display:flex;align-items:center;gap:6px;padding-top:18px"><input type="checkbox" id="drvAuto" checked> <span>Auto-backup to Google Drive after every change</span></label>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <button class="b" onclick="saveAndTestDrive()">Save &amp; Connect Drive</button>
+      <button class="b wa" onclick="syncToDrive(false)">☁ Backup to Drive Now</button>
+      <button class="b sec" onclick="restoreFromDrive()">⬇ Restore Latest from Drive</button>
+      <button class="b sec" onclick="openDriveFolder()">📂 Open My Drive ↗</button>
+      <button id="btnOpenSheet" class="b sec hide" onclick="openDriveSheet()">📊 Open Backup Sheet ↗</button>
+    </div>
+    <div id="drvStatus" class="small mut" style="margin-top:8px"></div>
+    </div>
+  </div>
+  <div class="card">
+    <h2>Shop & message settings</h2>
+    <div class="grid2">
+      <label>Shop / pharmacy name<br><input id="setShop" style="width:100%"></label>
+      <label>Shop contact number (shown in message)<br><input id="setPhone" style="width:100%"></label>
+      <label>Default order unit (most orders are in…)<br><select id="setUnit" style="width:100%"></select></label>
+      <label>Default country code<br><input id="setCC" style="width:100%"></label>
+      <label>Closing line<br><input id="setFooter" style="width:100%"></label>
+      <label>Admin passcode<br><input id="setPinAdmin" type="password" placeholder="leave blank to keep" style="width:100%"></label>
+      <label>Store Manager passcode<br><input id="setPinMgr" type="password" placeholder="leave blank to keep" style="width:100%"></label>
+      <label>Pharmacy 1 passcode<br><input id="setPinP1" type="password" placeholder="leave blank to keep" style="width:100%"></label>
+      <label>Pharmacy 2 passcode<br><input id="setPinP2" type="password" placeholder="leave blank to keep" style="width:100%"></label>
+      <label>Pharmacy 3 passcode<br><input id="setPinP3" type="password" placeholder="leave blank to keep" style="width:100%"></label>
+    </div>
+    <button class="b" style="margin-top:10px" onclick="saveSettings()">Save settings</button>
+  </div>
+  <div class="card">
+    <h2>Data</h2>
+    <div class="row">
+      <button class="b sec" onclick="loadSample()">Load sample data (demo)</button>
+      <button class="b red" onclick="resetAll()">Erase everything</button>
+    </div>
+    <p class="mut small">All data is stored in this browser on this PC. Use ⬇ Backup (top right) regularly.</p>
+  </div>
+</section>
+</main>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================ STATE ============================ */
+const KEY='po_maker_v1';
+const LOGIN_WM_URI='data:image/png;base64,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';
+(function(){const el=document.getElementById('loginWm');if(el)el.src=LOGIN_WM_URI})();
+const THEME_KEY='po_theme';
+function applyTheme(dark){
+  document.body.classList.toggle('dark',!!dark);
+  const lbl=dark?'☀ Bright':'🌙 Dark';
+  ['themeBtn','themeBtnLogin'].forEach(id=>{const b=document.getElementById(id);if(b)b.textContent=lbl});
+}
+function toggleTheme(){
+  const dark=!document.body.classList.contains('dark');
+  localStorage.setItem(THEME_KEY,dark?'dark':'light');
+  applyTheme(dark);
+}
+applyTheme(localStorage.getItem(THEME_KEY)==='dark');
+const DEFAULT_DRIVE_FOLDER_ID='1sH22XUOf8zrt-yJrpS4RGjrILvJ_3OI2';
+const DEFAULT_DRIVE_URL='https://drive.google.com/drive/folders/1sH22XUOf8zrt-yJrpS4RGjrILvJ_3OI2';
+function sha256(str){
+  const b=new TextEncoder().encode(str),l=b.length*8,w=[];
+  for(let i=0;i<b.length;i++)w[i>>2]|=b[i]<<((3-i%4)*8);
+  w[b.length>>2]|=0x80<<((3-b.length%4)*8);
+  const bl=(((b.length+8)>>6)+1)*16;
+  while(w.length<bl)w.push(0);
+  w[bl-1]=l;
+  const K=[0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+  let H=[0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+  const rotr=(x,n)=>(x>>>n)|(x<<(32-n));
+  for(let i=0;i<w.length;i+=16){
+    const W=w.slice(i,i+16);
+    for(let t=16;t<64;t++){
+      const s0=rotr(W[t-15],7)^rotr(W[t-15],18)^(W[t-15]>>>3);
+      const s1=rotr(W[t-2],17)^rotr(W[t-2],19)^(W[t-2]>>>10);
+      W[t]=(W[t-16]+s0+W[t-7]+s1)|0;
+    }
+    let [a,b0,c,d,e,f,g,h0]=H;
+    for(let t=0;t<64;t++){
+      const S1=rotr(e,6)^rotr(e,11)^rotr(e,25),ch=(e&f)^(~e&g),t1=(h0+S1+ch+K[t]+W[t])|0;
+      const S0=rotr(a,2)^rotr(a,13)^rotr(a,22),mj=(a&b0)^(a&c)^(b0&c),t2=(S0+mj)|0;
+      h0=g;g=f;f=e;e=(d+t1)|0;d=c;c=b0;b0=a;a=(t1+t2)|0;
+    }
+    H=[(H[0]+a)|0,(H[1]+b0)|0,(H[2]+c)|0,(H[3]+d)|0,(H[4]+e)|0,(H[5]+f)|0,(H[6]+g)|0,(H[7]+h0)|0];
+  }
+  return H.map(x=>(x>>>0).toString(16).padStart(8,'0')).join('');
+}
+function pinHash(role,pin){return 'h:'+sha256('po_mkr_v2:'+role+':'+String(pin))}
+function pinMatch(role,entered,stored){if(!stored)return false;return stored.startsWith('h:')?pinHash(role,entered)===stored:entered===stored}
+const DEFAULT_PINS={admin:'h:8655ca6449430ea4ce042b6d692607c954028d6b30cdff5fd9f0c62456e32bf5',manager:'h:bdbe1459df27553707efce285b2ba5591a1e66615984c2cfbad4f27edd36cd4d',pharmacy1:'h:e85ab2b1c2feeba410c31ae6f44dd67101554ec0187372888d5d2f9d2fc6d8e2',pharmacy2:'h:30caa9c845455fab29371edf24d0206aac94ba80601c0572992f22e8acf3922b',pharmacy3:'h:8c113698b11356f5222c37702d094e514800c7a4047247530625664893c887c2'};
+const SECURE_PIN_HASH='h:c84dbaafcc1b6bd116520a3b7cdfb1df1cccb8d9191b563affb41982db9d4540';
+const ROLES={
+  admin:{label:'Admin',tabs:['po','stockists','map','history','settings','staff'],home:'po',kind:'admin'},
+  manager:{label:'Store Manager',tabs:['po','stockists','map','history'],home:'po',kind:'manager'},
+  pharmacy1:{label:'Pharmacy 1',tabs:['staff'],home:'staff',kind:'pharmacy'},
+  pharmacy2:{label:'Pharmacy 2',tabs:['staff'],home:'staff',kind:'pharmacy'},
+  pharmacy3:{label:'Pharmacy 3',tabs:['staff'],home:'staff',kind:'pharmacy'},
+};
+const normBy=b=>b==='staff'?'pharmacy1':(b||'pharmacy1');
+const roleLabel=r=>ROLES[normBy(r)]?ROLES[normBy(r)].label:(r||'Pharmacy 1');
+function cleanName(s){return String(s??'').trim().replace(/\s+/g,' ')}
+function canon(s){
+  return String(s??'').toLowerCase()
+    .replace(/&/g,'and')
+    .replace(/(\d)[^a-z0-9]+(?=\d)/g,'$1_')
+    .replace(/[^a-z0-9_]+/g,'');
+}
+function nameScore(n){let sc=0;if(/\s/.test(n))sc+=2;if(/[A-Z]/.test(n)&&/[a-z]/.test(n))sc+=2;return sc}
+function dedupeCatalog(s){
+  const sBy={},sRemap={},keptS=[];
+  (s.stockists||[]).forEach(st=>{
+    st.name=cleanName(st.name);
+    const k=canon(st.name);
+    if(!k){keptS.push(st);return}
+    if(!sBy[k]){sBy[k]=st;keptS.push(st)}
+    else{
+      const keep=sBy[k];
+      if(!keep.phone&&st.phone)keep.phone=st.phone;
+      if(nameScore(st.name)>nameScore(keep.name))keep.name=st.name;
+      sRemap[st.id]=keep.id;
+    }
+  });
+  s.stockists=keptS;
+  const mapSid=id=>sRemap[id]||id;
+  if(Object.keys(sRemap).length){
+    (s.products||[]).forEach(p=>{
+      if(p.stockistId)p.stockistId=mapSid(p.stockistId);
+      const seenO=new Set();
+      p.offers=(p.offers||[]).map(o=>({id:mapSid(o.id),rate:o.rate||''})).filter(o=>{if(seenO.has(o.id))return false;seenO.add(o.id);return true});
+    });
+    (s.draft||[]).forEach(r=>{if(r.stockistId)r.stockistId=mapSid(r.stockistId)});
+  }
+  const pBy={},pRemap={},keptP=[];
+  (s.products||[]).forEach(p=>{
+    p.name=cleanName(p.name);
+    p.offers=p.offers||[];
+    if(p.stockistId&&!p.offers.some(o=>o.id===p.stockistId))p.offers.unshift({id:p.stockistId,rate:''});
+    const k=canon(p.name);
+    if(!k){keptP.push(p);return}
+    if(!pBy[k]){pBy[k]=p;keptP.push(p)}
+    else{
+      const keep=pBy[k];
+      p.offers.forEach(o=>{if(!keep.offers.some(x=>x.id===o.id))keep.offers.push({id:o.id,rate:o.rate||''})});
+      if(!keep.stockistId&&p.stockistId)keep.stockistId=p.stockistId;
+      if(!keep.pinned&&p.pinned&&p.stockistId){keep.stockistId=p.stockistId;keep.pinned=true}
+      if(!keep.unit&&p.unit)keep.unit=p.unit;
+      if(nameScore(p.name)>nameScore(keep.name))keep.name=p.name;
+      pRemap[p.id]=keep;
+    }
+  });
+  s.products=keptP;
+  if(Object.keys(pRemap).length){
+    (s.draft||[]).forEach(r=>{
+      if(r.productId&&pRemap[r.productId]){
+        const keep=pRemap[r.productId];
+        r.productId=keep.id;r.name=keep.name;
+        if(!r.stockistId&&keep.stockistId)r.stockistId=keep.stockistId;
+      }
+    });
+  }
+}
+function randKey(){const c='abcdefghjkmnpqrstuvwxyz23456789';let r='';for(let i=0;i<16;i++)r+=c[Math.floor(Math.random()*c.length)];return r}
+function defaultDrive(){return{url:'',secret:randKey(),folder:'Pharmacy PO Maker Backups',auto:true,folderUrl:DEFAULT_DRIVE_URL,sheetUrl:'',lastSync:''}}
+let S=load();
+function blank(){return{settings:{unit:'Box',pick:'lowest',pins:Object.assign({},DEFAULT_PINS),shop:'INHAERO CLINIC PHARMACY',phone:'',cc:'91',footer:'Kindly confirm availability & rate. Thank you.',drive:defaultDrive()},stockists:[],products:[],draft:[],requests:[],staffDrafts:{},history:[],seq:0,uid:1}}
+function load(){try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.settings)return migrate(s)}catch(e){}return blank()}
+function migrate(s){
+  s.requests=s.requests||[];s.requests.forEach(q=>{q.status=q.status||'pending';if(q.by==='staff')q.by='pharmacy1'});
+  s.staffDrafts=s.staffDrafts||{};if(s.staffDraft&&s.staffDraft.length&&!s.staffDrafts.pharmacy1){s.staffDrafts.pharmacy1=s.staffDraft}delete s.staffDraft;
+  s.draft=s.draft||[];s.history=s.history||[];s.settings.pick=s.settings.pick||'lowest';
+  const pins=Object.assign({},DEFAULT_PINS,s.settings.pins||{});
+  if(!s.settings.pins&&s.settings.adminPin)pins.admin=s.settings.adminPin;
+  s.settings.pins=pins;
+  const d=Object.assign(defaultDrive(),s.settings.drive||{});if(!d.secret)d.secret=randKey();if(!d.folder)d.folder='Pharmacy PO Maker Backups';if(!d.folderUrl||d.folderUrl.includes('/my-drive'))d.folderUrl=DEFAULT_DRIVE_URL;s.settings.drive=d;
+  dedupeCatalog(s);return s
+}
+function save(skipSync){localStorage.setItem(KEY,JSON.stringify(S));hdr();if(!skipSync&&typeof scheduleDriveSync==='function')scheduleDriveSync()}
+const uid=()=>S.uid++;
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const $=id=>document.getElementById(id);
+function toast(m){const t=$('toast');t.textContent=m;t.classList.add('show');clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.remove('show'),2200)}
+function hdr(){$('hdrStats').textContent=`${S.stockists.length} stockists · ${S.products.length} products · ${S.products.filter(p=>p.stockistId).length} mapped`;$('navPo').textContent='1 · Create Order'+(pendingReqs().length?` 🔔 ${pendingReqs().length}`:'')}
+
+/* ============================ HELPERS ============================ */
+const norm=s=>String(s).toLowerCase().replace(/&/g,' and ').replace(/[^a-z0-9]+/g,' ').trim();
+const nums=s=>(norm(s).match(/\d+/g)||[]).sort().join(',');
+function bigrams(s){s=s.replace(/ /g,'');const r=[];for(let i=0;i<s.length-1;i++)r.push(s.substr(i,2));return r}
+function sim(a,b){const x=bigrams(a),y=bigrams(b);if(!x.length||!y.length)return a===b?1:0;const m=new Map();x.forEach(g=>m.set(g,(m.get(g)||0)+1));let hit=0;y.forEach(g=>{if(m.get(g)>0){hit++;m.set(g,m.get(g)-1)}});return 2*hit/(x.length+y.length)}
+function findProduct(name){
+  const ck=canon(name);if(!ck)return{};
+  const ex=S.products.find(p=>canon(p.name)===ck);if(ex)return{exact:ex};
+  let best=null,bs=0;
+  for(const p of S.products){const sc=sim(ck,canon(p.name));if(sc>bs){bs=sc;best=p}}
+  if(best&&bs>=0.8)return nums(name)===nums(best.name)?{exact:best,fuzzy:true}:{suggest:best};
+  if(best&&bs>=0.65)return{suggest:best};
+  return{};
+}
+const stk=id=>S.stockists.find(s=>s.id===id);
+const pendingReqs=()=>S.requests.filter(q=>(q.status||'pending')==='pending');
+function ensureOffer(p,id,rate){p.offers=p.offers||[];let o=p.offers.find(x=>x.id===id);if(!o){o={id,rate:''};p.offers.push(o)}if(rate!==undefined&&rate!=='')o.rate=rate;return o}
+function bestStockist(p){if(!p)return null;if(p.pinned&&p.stockistId&&stk(p.stockistId))return p.stockistId;
+  if(p.stockistId&&stk(p.stockistId))return p.stockistId;const o=(p.offers||[]).find(o=>stk(o.id));return o?o.id:null}
+function phoneOf(s){let d=(s.phone||'').replace(/\D/g,'');if(d.length===10)d=S.settings.cc.replace(/\D/g,'')+d;return d}
+function findStockistByName(n){const k=canon(n);return k?S.stockists.find(s=>canon(s.name)===k):null}
+function getOrMakeStockist(name,phone){const cn=cleanName(name);let s=findStockistByName(cn);if(!s){s={id:uid(),name:cn,phone:(phone||'').trim(),createdAt:new Date().toISOString()};S.stockists.push(s)}else if(phone&&!s.phone)s.phone=phone.trim();return s}
+const UNITS=['Box','Strip','Pcs','Bottle','Pack','Vial','Tube','Carton'];
+const defUnit=()=>S.settings.unit||'Box';
+function normUnit(u){
+  if(!u)return '';u=u.toLowerCase();
+  if(/^(box|boxes|bx|bxs|bo)$/.test(u))return 'Box';
+  if(/^(strip|strips|str|stp)$/.test(u))return 'Strip';
+  if(/^(pcs|pc|piece|pieces|nos|no)$/.test(u))return 'Pcs';
+  if(/^(btl|btls|bottle|bottles)$/.test(u))return 'Bottle';
+  if(/^(pack|packs|pkt|pkts)$/.test(u))return 'Pack';
+  if(/^(vial|vials)$/.test(u))return 'Vial';
+  if(/^(tube|tubes)$/.test(u))return 'Tube';
+  if(/^(carton|cartons|ctn)$/.test(u))return 'Carton';
+  return u.charAt(0).toUpperCase()+u.slice(1);
+}
+function unitOpts(sel){const l=UNITS.includes(sel)||!sel?UNITS:[...UNITS,sel];return l.map(u=>`<option ${u===sel?'selected':''}>${esc(u)}</option>`).join('')}
+function parseLine(line){
+  line=line.trim();if(!line)return null;
+  let m;
+  if((m=line.match(/^(.*?)(?:\t|\s*,\s*|\s+[xX×]\s*|\s+[-–:]\s*)(\d+)\s*([a-zA-Z]+)?\s*$/))&&m[1].trim())return{name:m[1].trim(),qty:+m[2],unit:normUnit(m[3])};
+  if((m=line.match(/^(.*?)\s*[xX×]\s*(\d+)$/))&&m[1].trim())return{name:m[1].trim(),qty:+m[2],unit:''};
+  return{name:line.replace(/^\d+[.)]\s+/,''),qty:1,unit:''};
+}
+function splitCSV(line){return line.split(/\t|,/).map(x=>x.trim())}
+
+/* ============================ ORDER DRAFT ============================ */
+function addDraft(name,qty,unit){
+  const cn=cleanName(name);if(!cn)return;
+  const r=findProduct(cn);
+  const row={id:uid(),raw:cn,name:r.exact?r.exact.name:cn,qty:qty||1,unit:unit||(r.exact&&r.exact.unit)||defUnit(),productId:r.exact?r.exact.id:null,suggestId:r.suggest?r.suggest.id:null,stockistId:r.exact?bestStockist(r.exact):null,fuzzy:!!r.fuzzy};
+  // merge duplicates ignoring extra/missing spaces & case
+  const dup=S.draft.find(d=>canon(d.name)===canon(row.name)&&d.unit===row.unit);
+  if(dup){dup.qty+=row.qty;return}
+  S.draft.push(row);
+}
+function addFromPaste(){
+  const lines=$('pasteBox').value.split(/\r?\n/);let n=0;
+  lines.forEach(l=>{const p=parseLine(l);if(p){addDraft(p.name,p.qty,p.unit);n++}});
+  if(!n)return toast('Nothing to add');
+  $('pasteBox').value='';save();renderDraft();toast(n+' lines added')
+}
+function quickAdd(){const n=$('qaName').value.trim();if(!n)return;addDraft(n,+$('qaQty').value||1,$('qaUnit').value);$('qaName').value='';$('qaQty').value='';save();renderDraft();$('qaName').focus()}
+function clearDraft(){if(S.draft.length&&!confirm('Clear the whole order list?'))return;S.draft=[];save();renderDraft();$('results').innerHTML=''}
+function stockistOpts(sel){return '<option value="">— choose —</option>'+[...S.stockists].sort((a,b)=>a.name.localeCompare(b.name)).map(s=>`<option value="${s.id}" ${s.id===sel?'selected':''}>${esc(s.name)}${s.phone?'':' (no number)'}</option>`).join('')}
+function rowStockistOpts(r){
+  const p=r.productId&&S.products.find(x=>x.id===r.productId);
+  const offs=p?p.offers.filter(o=>stk(o.id)):[];const ids=offs.map(o=>o.id);
+  const opt=(s,x)=>`<option value="${s.id}" ${s.id===r.stockistId?'selected':''}>${esc(s.name)}${x||''}${s.phone?'':' (no number)'}</option>`;
+  const others=[...S.stockists].filter(s=>!ids.includes(s.id)).sort((a,b)=>a.name.localeCompare(b.name));
+  let h='<option value="">— choose —</option>';
+  if(offs.length)h+='<optgroup label="Stockists for this product">'+offs.map(o=>opt(stk(o.id))).join('')+'</optgroup><optgroup label="Other stockists">'+others.map(s=>opt(s)).join('')+'</optgroup>';
+  else h+=others.map(s=>opt(s)).join('');
+  return h;
+}
+function rowNote(r){const p=r.productId&&S.products.find(x=>x.id===r.productId);const n=p?p.offers.filter(o=>stk(o.id)).length:0;return n>1?`<div class="small mut">${n} stockists available – choose one</div>`:''}
+function renderRequests(){
+  const el=$('reqBox');if(!el)return;
+  const list=pendingReqs();
+  if(!list.length){el.innerHTML='';return}
+  const topBar=list.length>1?`<div class="card pending-bar"><div class="row" style="justify-content:space-between"><b>📋 ${list.length} pending orders from pharmacies</b><button class="b sec sm" onclick="downloadPendingPharmacyPDF()">📄 Download All Pending (PDF)</button></div></div>`:'';
+  el.innerHTML=topBar+list.map(q=>`<div class="card req-card"><div class="row" style="justify-content:space-between"><b>📋 ${esc(roleLabel(q.by))} · ${new Date(q.date).toLocaleString()} · ${q.items.length} item${q.items.length>1?'s':''}</b><div class="row"><button class="b sec sm" onclick="downloadSinglePharmacyPDF(${q.id})">📄 PDF</button><button class="b" onclick="importReq(${q.id})">Import into order list</button><button class="b red sm" onclick="dismissReq(${q.id})">Dismiss</button></div></div><div class="small mut" style="margin-top:4px">${q.items.map(i=>esc(i.name)+' – '+i.qty+' '+esc(i.unit||'')).join(' · ')}</div></div>`).join('');
+}
+function importReq(id){const q=S.requests.find(x=>x.id===id);if(!q)return;q.items.forEach(i=>addDraft(i.name,i.qty,i.unit));q.status='imported';save();renderDraft();toast(q.items.length+' item'+(q.items.length>1?'s':'')+' imported')}
+function dismissReq(id){if(!confirm('Dismiss this order list?'))return;const q=S.requests.find(x=>x.id===id);if(q)q.status='dismissed';save();renderRequests()}
+function renderDraft(){
+  $('qaUnit').innerHTML=unitOpts(defUnit());renderRequests();
+  $('prodList').innerHTML=S.products.map(p=>`<option value="${esc(p.name)}">`).join('');
+  const d=S.draft;const un=d.filter(r=>!r.stockistId).length;
+  $('draftCard').classList.toggle('hide',!d.length);
+  $('draftStats').innerHTML=`<div class="stat"><b>${d.length}</b> items</div><div class="stat" style="color:var(--pri)"><b>${d.length-un}</b> auto-mapped</div><div class="stat" style="color:var(--bad)"><b>${un}</b> need a stockist</div>`;
+  $('draftBody').innerHTML=d.map((r,i)=>{
+    const sug=r.suggestId&&S.products.find(p=>p.id===r.suggestId);
+    let prod;
+    if(r.productId)prod=`<span class="tag ok">${r.fuzzy?'matched':'in master'}</span> ${esc(r.name)}`;
+    else prod=`<span class="tag new">NEW</span> <span class="mut small">will be registered</span>`+(sug?` <button class="b sec sm" onclick="useSuggest(${r.id})">Did you mean “${esc(sug.name)}”?</button>`:'');
+    return `<tr class="${r.stockistId?'':'unmapped'}"><td>${i+1}</td><td><input value="${esc(r.name)}" style="width:100%;min-width:180px" onchange="editName(${r.id},this.value)"></td><td>${prod}</td>
+      <td><input class="qty" type="number" min="1" value="${r.qty}" onchange="editQty(${r.id},this.value)"></td>
+      <td><select onchange="editUnit(${r.id},this.value)">${unitOpts(r.unit)}</select></td>
+      <td><select onchange="pickStockist(${r.id},this.value)">${rowStockistOpts(r)}</select>${rowNote(r)}</td>
+      <td><button class="b red sm" onclick="delDraft(${r.id})">✕</button></td></tr>`}).join('');
+}
+function editUnit(id,v){const r=S.draft.find(x=>x.id===id);r.unit=v;const p=r.productId&&S.products.find(x=>x.id===r.productId);if(p&&$('remember').checked)p.unit=v;save()}
+function editQty(id,v){const r=S.draft.find(x=>x.id===id);r.qty=Math.max(1,+v||1);save()}
+function editName(id,v){const r=S.draft.find(x=>x.id===id);if(!v.trim())return;S.draft=S.draft.filter(x=>x.id!==id);addDraft(v.trim(),r.qty,r.unit);save();renderDraft()}
+function delDraft(id){S.draft=S.draft.filter(r=>r.id!==id);save();renderDraft()}
+function useSuggest(id){const r=S.draft.find(x=>x.id===id),p=S.products.find(x=>x.id===r.suggestId);r.name=p.name;r.productId=p.id;r.stockistId=bestStockist(p);if(p.unit)r.unit=p.unit;r.suggestId=null;save();renderDraft()}
+function pickStockist(id,v){
+  const r=S.draft.find(x=>x.id===id);r.stockistId=v?+v:null;
+  if(v&&$('remember').checked){
+    let p=r.productId&&S.products.find(x=>x.id===r.productId);
+    if(!p){const ck=canon(r.name);p=S.products.find(x=>canon(x.name)===ck)}
+    if(!p){p={id:uid(),name:cleanName(r.name),stockistId:null,offers:[]};S.products.push(p)}
+    p.stockistId=+v;ensureOffer(p,+v);p.pinned=true;p.unit=r.unit;r.name=p.name;r.productId=p.id;r.suggestId=null;
+  }
+  save();renderDraft()
+}
+
+/* ============================ GENERATE + WHATSAPP ============================ */
+const pad=n=>String(n).padStart(2,'0');
+function today(){const d=new Date();return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()}`}
+function buildMessages(poNo,stockistName,items){
+  const head=`*PURCHASE ORDER*\n${S.settings.shop}${S.settings.phone?'\nPh: '+S.settings.phone:''}\nPO No: ${poNo}  |  Date: ${today()}\nTo: ${stockistName}\n`;
+  const foot=`\nTotal items: ${items.length}\n${S.settings.footer}`;
+  const lines=items.map((it,i)=>`${i+1}. ${it.name} – ${it.qty} ${it.unit||''}`.trim());
+  const LIMIT=1500;
+  const parts=[];let cur=[];
+  const enc=a=>encodeURIComponent(head+'\n'+a.join('\n')+foot+'\n(Part 99/99)').length;
+  lines.forEach(l=>{if(cur.length&&enc([...cur,l])>LIMIT){parts.push(cur);cur=[]}cur.push(l)});
+  if(cur.length)parts.push(cur);
+  return parts.map((p,i)=>{
+    const tag=parts.length>1?`\n(Part ${i+1}/${parts.length})`:'';
+    const last=i===parts.length-1;
+    return head+'\n'+p.join('\n')+'\n'+(last?foot:'')+tag;
+  });
+}
+function generate(){
+  const ready=S.draft.filter(r=>r.stockistId),skip=S.draft.length-ready.length;
+  if(!ready.length)return toast('Choose stockists first');
+  if(skip&&!confirm(`${skip} item(s) have no stockist and will be left out of this order. Continue?`))return;
+  S.seq++;const poNo=`PO-${today().split('/').reverse().join('')}-${String(S.seq).padStart(3,'0')}`;
+  const by={};ready.forEach(r=>{(by[r.stockistId]=by[r.stockistId]||[]).push({name:r.name,qty:r.qty,unit:r.unit})});
+  const groups=Object.keys(by).map(id=>{const s=stk(+id);return{stockistId:+id,name:s.name,phone:phoneOf(s),items:by[id],sent:false,sentAt:null}}).sort((a,b)=>a.name.localeCompare(b.name));
+  const po={id:uid(),no:poNo,date:new Date().toISOString(),groups};
+  S.history.unshift(po);
+  S.draft=S.draft.filter(r=>!r.stockistId);   // keep only unassigned ones for later
+  save();renderDraft();$('results').dataset.poid=po.id;showPO(po,$('results'),true);
+  $('results').scrollIntoView({behavior:'smooth'});
+}
+function waURL(g,text){const s=stk(g.stockistId);const ph=(s&&phoneOf(s))||g.phone||'';return `https://wa.me/${ph}?text=${encodeURIComponent(text)}`}
+function showPO(po,el,withTitle){
+  el.innerHTML=`<div class="card"><div class="row" style="justify-content:space-between"><h2 style="margin:0">${withTitle?'Step 3 – ':''}${esc(po.no)} · ${po.groups.length} stockist order(s) · ${po.groups.reduce((a,g)=>a+g.items.length,0)} items</h2>
+    <div class="row"><button class="b wa" onclick="openAll(${po.id})">Open all on WhatsApp</button><button class="b sec" onclick="downloadPOPDF(${po.id})">📄 PO PDF</button><button class="b sec" onclick="printPO(${po.id})">🖨 Print</button></div></div>
+    <p class="mut small">Each button opens WhatsApp with the message ready – you only press Send. If “Open all” opens only one chat, allow pop-ups for this page.</p>
+    ${po.groups.map((g,gi)=>poCard(po,g,gi)).join('')}</div>`;
+}
+function poCard(po,g,gi){
+  const s=stk(g.stockistId);const ph=(s&&phoneOf(s))||g.phone||'';const msgs=buildMessages(po.no,g.name,g.items);const noNum=!ph;
+  const sentTxt=g.sent?`✓ sent${g.sentAt?' · '+new Date(g.sentAt).toLocaleString():''}`:'';
+  return `<div class="pocard ${g.sent?'sent':''}" id="pc-${po.id}-${gi}">
+    <header><b style="font-size:15px">${esc(g.name)}</b><span class="tag ${noNum?'new':'ok'}">${noNum?'no WhatsApp number':'+'+ph}</span><span class="mut small">${g.items.length} item${g.items.length>1?'s':''}</span><span class="sp"></span>
+      ${g.sent?`<span class="tag ok">${esc(sentTxt)}</span>`:''}</header>
+    <details ${g.items.length<=8?'open':''}><summary class="small mut">Preview message${msgs.length>1?` (${msgs.length} parts)`:''}</summary>${msgs.map(m=>`<div class="msg" style="margin-top:6px">${esc(m)}</div>`).join('')}</details>
+    <div class="row" style="margin-top:8px">
+      ${msgs.map((m,i)=>`<button class="b wa" ${noNum?'disabled style="opacity:.5"':''} onclick="sendWA(${po.id},${gi},${i})">Send on WhatsApp${msgs.length>1?' – part '+(i+1):''}</button>`).join('')}
+      <button class="b sec" onclick="copyMsg(${po.id},${gi})">Copy text</button>
+      <button class="b sec" onclick="downloadSupplierPOPDF(${po.id},${gi})">📄 PDF</button>
+      ${noNum&&s?`<input id="np-${po.id}-${gi}" placeholder="Enter WhatsApp number" style="width:170px"><button class="b sec" onclick="setNum(${po.id},${gi})">Save number</button>`:''}
+      <label class="small"><input type="checkbox" ${g.sent?'checked':''} onchange="markSent(${po.id},${gi},this.checked)"> mark as sent</label>
+    </div></div>`;
+}
+function getPO(id){return S.history.find(p=>p.id===id)}
+function sendWA(poId,gi,part){
+  const po=getPO(poId),g=po.groups[gi];const m=buildMessages(po.no,g.name,g.items)[part];
+  window.open(waURL(g,m),'_blank');
+  if(part===buildMessages(po.no,g.name,g.items).length-1)markSent(poId,gi,true);
+}
+function openAll(poId){
+  const po=getPO(poId);const list=po.groups.filter(g=>{const s=stk(g.stockistId);return (s&&phoneOf(s))||g.phone});
+  if(!list.length)return toast('No stockist has a WhatsApp number');
+  list.forEach((g,k)=>setTimeout(()=>{const msgs=buildMessages(po.no,g.name,g.items);window.open(waURL(g,msgs[0]),'_blank');if(msgs.length===1){g.sent=true;g.sentAt=new Date().toISOString()}save()},k*700));
+  setTimeout(()=>rerenderPO(poId),list.length*700+200);
+  if(list.some(g=>buildMessages(po.no,g.name,g.items).length>1))toast('Long orders: use their per-part buttons for remaining parts');
+}
+function rerenderPO(poId){
+  const po=getPO(poId);if(!po)return;
+  if(String($('results').dataset.poid)===String(poId))showPO(po,$('results'),true);
+  if(!$('tab-history').classList.contains('hide'))renderHistory();
+  else{const h=$('histOpen-'+poId);if(h)showPO(po,h,false)}
+}
+function markSent(poId,gi,v){const g=getPO(poId).groups[gi];g.sent=v;g.sentAt=v?new Date().toISOString():null;save();rerenderPO(poId)}
+function copyMsg(poId,gi){const po=getPO(poId),g=po.groups[gi];navigator.clipboard.writeText(buildMessages(po.no,g.name,g.items).join('\n\n')).then(()=>toast('Copied'))}
+function setNum(poId,gi){const g=getPO(poId).groups[gi];const v=$(`np-${poId}-${gi}`).value.trim();if(!v)return;stk(g.stockistId).phone=v;save();rerenderPO(poId);renderStockists()}
+function printPO(poId){
+  const po=getPO(poId);const w=window.open('','_blank');
+  w.document.write(`<title>${po.no}</title><body style="font:14px sans-serif"><h2>${esc(S.settings.shop)} – ${po.no}</h2>`+po.groups.map(g=>`<h3>${esc(g.name)}</h3><table border=1 cellpadding=5 style="border-collapse:collapse"><tr><th>#</th><th>Product</th><th>Qty</th></tr>${g.items.map((it,i)=>`<tr><td>${i+1}</td><td>${esc(it.name)}</td><td>${it.qty} ${esc(it.unit||'')}</td></tr>`).join('')}</table>`).join('')+'</body>');
+  w.document.close();w.print();
+}
+
+/* ============================ STOCKISTS ============================ */
+function addStockist(){const n=$('sName').value.trim();if(!n)return toast('Enter name');getOrMakeStockist(n,$('sPhone').value);$('sName').value=$('sPhone').value='';save();renderStockists();renderDraft();toast('Stockist saved')}
+function bulkStockists(){let c=0;$('sBulk').value.split(/\r?\n/).forEach(l=>{const a=splitCSV(l);if(a[0]){getOrMakeStockist(a[0],a[1]);c++}});$('sBulk').value='';save();renderStockists();toast(c+' stockists imported')}
+function renderStockists(){
+  $('stkBody').innerHTML=S.stockists.map(s=>`<tr><td><input value="${esc(s.name)}" onchange="stk(${s.id}).name=this.value;save()" style="width:100%"></td>
+    <td><input value="${esc(s.phone)}" placeholder="WhatsApp number" onchange="stk(${s.id}).phone=this.value;save()"></td>
+    <td>${S.products.filter(p=>p.offers.some(o=>o.id===s.id)).length}</td><td><button class="b red sm" onclick="delStockist(${s.id})">Delete</button></td></tr>`).join('')||'<tr><td colspan=4 class="mut">No stockists yet.</td></tr>';
+}
+function delStockist(id){if(!confirm('Delete this stockist? Its products become unmapped.'))return;mpSel.delete(id);S.stockists=S.stockists.filter(s=>s.id!==id);S.products.forEach(p=>{p.offers=p.offers.filter(o=>o.id!==id);if(p.stockistId===id){p.stockistId=p.offers[0]?p.offers[0].id:null;p.pinned=false}});S.draft.forEach(r=>{if(r.stockistId===id)r.stockistId=null});save();renderStockists();renderMap();renderDraft()}
+
+/* ============================ MAPPING ============================ */
+let mpSel=new Set(),openRowPickId=null;
+function updateMpBtn(){
+  const b=$('mpAddBtn');if(!b)return;
+  const n=mpSel.size;
+  b.textContent=n?`+ Add / Map (${n} stockist${n>1?'s':''})`:'+ Add / Map';
+}
+function renderMpStkChips(){
+  const host=$('mpStkList');if(!host)return;
+  const fq=norm($('mpStkFilter')?.value||'');
+  const v=cleanName($('mpName')?.value||'');
+  const ex=v?S.products.find(x=>canon(x.name)===canon(v)):null;
+  const exIds=new Set(ex?ex.offers.map(o=>o.id):[]);
+  const list=[...S.stockists].sort((a,b)=>a.name.localeCompare(b.name)).filter(s=>!fq||norm(s.name).includes(fq));
+  if(!S.stockists.length){host.innerHTML='<span class="mut small">Register stockists first in the Stockists tab.</span>';updateMpBtn();return}
+  host.innerHTML=list.length?list.map(s=>{
+    const on=mpSel.has(s.id),mapped=exIds.has(s.id);
+    return `<label class="stk-chip ${on?'on':''}"><input type="checkbox" ${on?'checked':''} onchange="toggleMpStk(${s.id},this.checked)"><span>${esc(s.name)}${mapped?' <span class="mut small">(mapped)</span>':''}</span></label>`;
+  }).join(''):'<span class="mut small">No matching stockists.</span>';
+  updateMpBtn();
+}
+function toggleMpStk(sid,checked){
+  if(checked)mpSel.add(sid);else mpSel.delete(sid);
+  renderMpStkChips();
+}
+function clearMpSel(){mpSel.clear();if($('mpStkFilter'))$('mpStkFilter').value='';renderMpStkChips()}
+function previewMapMatch(){
+  const el=$('mpMatch');if(!el)return;
+  const v=cleanName($('mpName').value);
+  if(!v){el.innerHTML='';renderMpStkChips();return}
+  const ex=S.products.find(x=>canon(x.name)===canon(v));
+  if(ex){
+    const sups=ex.offers.filter(o=>stk(o.id)).map(o=>stk(o.id).name);
+    el.innerHTML=`<span class="tag ok">Same product found</span> Will merge into <b>${esc(ex.name)}</b>`+(sups.length?` (current suppliers: ${esc(sups.join(', '))})`:'');
+  }else{
+    const f=findProduct(v);
+    if(f.exact||f.suggest){const m=f.exact||f.suggest;el.innerHTML=`<span class="tag sug">Similar product</span> “${esc(m.name)}” already exists — check spelling if it is the same product.`}
+    else el.innerHTML='<span class="mut">New product will be created — tick one or more stockists below</span>';
+  }
+  renderMpStkChips();
+}
+function addSingleMap(){
+  const nm=cleanName($('mpName').value);
+  if(!nm)return toast('Enter product name');
+  const chosen=[...mpSel].map(id=>stk(id)).filter(Boolean);
+  if(!chosen.length)return toast('Tick at least one stockist');
+  let p=S.products.find(x=>canon(x.name)===canon(nm));
+  let added=0,msg;
+  if(p){
+    chosen.forEach(st=>{if(!p.offers.some(o=>o.id===st.id))added++;ensureOffer(p,st.id);if(!p.stockistId)p.stockistId=st.id});
+    msg=added?`Matched "${p.name}" – added ${added} stockist${added>1?'s':''} ✓`:`"${p.name}" already has selected stockist${chosen.length>1?'s':''}`;
+  }else{
+    p={id:uid(),name:nm,stockistId:chosen[0].id,offers:chosen.map(st=>({id:st.id,rate:''}))};
+    S.products.push(p);
+    msg=`Added "${p.name}" → ${chosen.length} stockist${chosen.length>1?'s':''} ✓`;
+  }
+  $('mpName').value='';if($('mpMatch'))$('mpMatch').innerHTML='';
+  mpSel.clear();if($('mpStkFilter'))$('mpStkFilter').value='';
+  save();renderMap();renderStockists();renderDraft();toast(msg);$('mpName').focus();
+}
+function bulkMap(){
+  let created=0,merged=0;
+  $('mapBulk').value.split(/\r?\n/).forEach(l=>{
+    const a=splitCSV(l);if(!a[0]||!a[1])return;
+    const nm=cleanName(a[0]);if(!nm)return;
+    const st=getOrMakeStockist(a[1]);
+    let p=S.products.find(x=>canon(x.name)===canon(nm));
+    if(!p){p={id:uid(),name:nm,stockistId:st.id,offers:[]};S.products.push(p);created++}
+    else{merged++}
+    ensureOffer(p,st.id);
+    if(!p.stockistId)p.stockistId=st.id;
+  });
+  $('mapBulk').value='';save();renderMap();renderStockists();renderDraft();
+  toast(`${created+merged} mapped (${created} new, ${merged} added to existing)`)
+}
+function mapRowCells(p){
+  const offs=p.offers.filter(o=>stk(o.id));
+  const ids=new Set(offs.map(o=>o.id));
+  const open=openRowPickId===p.id;
+  const allS=[...S.stockists].sort((a,b)=>a.name.localeCompare(b.name));
+  const defCell=`<select onchange="mapSet(${p.id},this.value)">${stockistOpts(p.stockistId)}</select>${p.pinned?` <span class="tag sug" title="Always used for this product">📌 fixed <a href="#" onclick="unpin(${p.id});return false">✕</a></span>`:''}`;
+  const chips=offs.map(o=>`<span class="tag ok" style="margin:1px">${esc(stk(o.id).name)} <a href="#" onclick="rmOffer(${p.id},${o.id});return false">✕</a></span>`).join(' ');
+  const pickTray=open?`<div class="row-pick"><div class="stk-pick" style="margin-top:0">${allS.map(s=>`<label class="stk-chip ${ids.has(s.id)?'on':''}"><input type="checkbox" ${ids.has(s.id)?'checked':''} onchange="toggleRowOffer(${p.id},${s.id},this.checked)"><span>${esc(s.name)}</span></label>`).join('')||'<span class="mut small">No stockists registered.</span>'}</div><div class="row" style="margin-top:6px;justify-content:flex-end"><button class="b sec sm" onclick="toggleRowPick(${p.id})">Done</button></div></div>`:'';
+  const stkCell=`<div>${chips}${chips?' ':''}<button class="b sec sm" style="margin-top:2px" onclick="toggleRowPick(${p.id})">${open?'Done':'+ Select stockists'}</button></div>${pickTray}`;
+  return {defCell,stkCell};
+}
+function renderMap(){
+  renderMpStkChips();
+  $('prodList').innerHTML=S.products.map(p=>`<option value="${esc(p.name)}">`).join('');
+  const q=norm($('mapSearch').value),cq=canon($('mapSearch').value),un=$('mapUnm').checked;
+  const list=S.products.filter(p=>(!q||norm(p.name).includes(q)||(cq&&canon(p.name).includes(cq)))&&(!un||!p.stockistId)).sort((a,b)=>a.name.localeCompare(b.name));
+  $('mapCount').textContent=list.length+' shown';
+  $('mapBody').innerHTML=list.slice(0,300).map(p=>{
+    const {defCell,stkCell}=mapRowCells(p);
+    return `<tr id="mr-${p.id}" class="${p.stockistId?'':'unmapped'}"><td>${esc(p.name)}</td>
+    <td id="md-${p.id}">${defCell}</td>
+    <td id="ms-${p.id}">${stkCell}</td>
+    <td><button class="b red sm" onclick="delProduct(${p.id})">✕</button></td></tr>`}).join('')||'<tr><td colspan=4 class="mut">No products yet – they are added automatically when you map them while ordering, or via bulk import above.</td></tr>';
+}
+function refreshMapRow(p){
+  const tr=$('mr-'+p.id),md=$('md-'+p.id),ms=$('ms-'+p.id);
+  if(!tr||!md||!ms)return renderMap();
+  const {defCell,stkCell}=mapRowCells(p);
+  tr.className=p.stockistId?'':'unmapped';
+  md.innerHTML=defCell;ms.innerHTML=stkCell;
+}
+function toggleRowPick(pid){
+  const prev=openRowPickId;
+  openRowPickId=openRowPickId===pid?null:pid;
+  if(prev&&prev!==pid){const pp=S.products.find(x=>x.id===prev);if(pp)refreshMapRow(pp)}
+  const p=S.products.find(x=>x.id===pid);if(p)refreshMapRow(p);
+}
+function toggleRowOffer(pid,sid,checked){
+  const p=S.products.find(x=>x.id===pid);if(!p)return;
+  if(checked){ensureOffer(p,sid);if(!p.stockistId)p.stockistId=sid}
+  else{p.offers=p.offers.filter(o=>o.id!==sid);if(p.stockistId===sid){p.stockistId=p.offers[0]?p.offers[0].id:null;p.pinned=false}}
+  save();refreshMapRow(p);renderStockists();renderMpStkChips();
+}
+function mapSet(id,v){const p=S.products.find(p=>p.id===id);p.stockistId=v?+v:null;p.pinned=!!v;if(v)ensureOffer(p,+v);save();refreshMapRow(p);renderStockists()}
+function unpin(id){const p=S.products.find(p=>p.id===id);p.pinned=false;save();refreshMapRow(p)}
+function rmOffer(id,sid){const p=S.products.find(p=>p.id===id);p.offers=p.offers.filter(o=>o.id!==sid);if(p.stockistId===sid){p.stockistId=p.offers[0]?p.offers[0].id:null;p.pinned=false}save();refreshMapRow(p);renderStockists();renderMpStkChips()}
+function delProduct(id){if(openRowPickId===id)openRowPickId=null;S.products=S.products.filter(p=>p.id!==id);save();renderMap();renderStockists()}
+function exportMapCSV(){
+  const q=t=>`"${String(t).replace(/"/g,'""')}"`;const rows=['Product,Stockist'];
+  S.products.forEach(p=>{const o=p.offers.filter(o=>stk(o.id));if(!o.length)rows.push(q(p.name)+',');o.forEach(x=>rows.push(`${q(p.name)},${q(stk(x.id).name)}`))});
+  dl('product-stockist-mapping.csv',rows.join('\n'),'text/csv');
+}
+
+/* ============================ OFFLINE PDF GENERATOR ============================ */
+function pdfSafe(s){
+  return String(s??'')
+    .replace(/[\u2013\u2014]/g,'-').replace(/\u00D7/g,'x')
+    .replace(/[\u2018\u2019]/g,"'").replace(/[\u201C\u201D]/g,'"')
+    .replace(/\u20B9/g,'Rs.').replace(/\u2713/g,'OK')
+    .replace(/[^\x20-\x7E]/g,' ').replace(/\s+/g,' ').trim();
+}
+function pdfEsc(s){return pdfSafe(s).replace(/\\/g,'\\\\').replace(/\(/g,'\\(').replace(/\)/g,'\\)')}
+function estWidth(str,size,bold){
+  let w=0;const k=bold?1.06:1;
+  for(let i=0;i<str.length;i++){
+    const c=str[i];
+    if('ilI1.,:;|\'!` '.includes(c))w+=0.29;
+    else if('WMmw@GOQD'.includes(c))w+=0.79;
+    else if(c>='A'&&c<='Z')w+=0.66;
+    else w+=0.53;
+  }
+  return w*size*k;
+}
+function wrapText(str,maxW,size,bold){
+  const s=pdfSafe(str);if(!s)return[''];
+  const words=s.split(' '),lines=[];let cur='';
+  const pushWord=w=>{
+    if(estWidth(w,size,bold)<=maxW){
+      if(!cur)cur=w;
+      else if(estWidth(cur+' '+w,size,bold)<=maxW)cur+=' '+w;
+      else{lines.push(cur);cur=w}
+      return;
+    }
+    if(cur){lines.push(cur);cur=''}
+    let chunk='';
+    for(let i=0;i<w.length;i++){
+      if(estWidth(chunk+w[i],size,bold)>maxW&&chunk){lines.push(chunk);chunk=w[i]}
+      else chunk+=w[i];
+    }
+    if(chunk)cur=chunk;
+  };
+  words.forEach(pushWord);
+  if(cur)lines.push(cur);
+  return lines.length?lines:[''];
+}
+function createPdfDoc(opts){
+  const W=595,H=842,M=36,CW=W-2*M,BOT=52;
+  const shop=pdfSafe(opts.shop||S.settings.shop||'Pharmacy PO Maker');
+  const phone=pdfSafe(opts.phone||S.settings.phone||'');
+  const title=pdfSafe(opts.title||'Report');
+  const subtitle=pdfSafe(opts.subtitle||'');
+  const generated=pdfSafe(opts.generated||new Date().toLocaleString());
+  const pages=[];let cur=null,y=0;
+  const rect=(x,topY,w,h,rgb)=>cur.push(`${rgb} rg ${x.toFixed(2)} ${(H-topY-h).toFixed(2)} ${w.toFixed(2)} ${h.toFixed(2)} re f`);
+  const line=(x1,x2,topY,rgb,lw=0.5)=>cur.push(`${rgb} RG ${lw} w ${x1.toFixed(2)} ${(H-topY).toFixed(2)} m ${x2.toFixed(2)} ${(H-topY).toFixed(2)} l S`);
+  const text=(t,x,topY,size=9,bold=false,rgb='0.11 0.14 0.20',align='left')=>{
+    const clean=pdfSafe(t);if(!clean)return;
+    let tx=x;if(align==='right')tx=x-estWidth(clean,size,bold);else if(align==='center')tx=x-estWidth(clean,size,bold)/2;
+    cur.push(`BT /${bold?'F2':'F1'} ${size} Tf ${rgb} rg ${tx.toFixed(2)} ${(H-topY).toFixed(2)} Td (${pdfEsc(clean)}) Tj ET`);
+  };
+  function newPage(first){
+    cur=[];pages.push(cur);
+    if(first){
+      rect(M,26,CW,54,'0.043 0.478 0.294');
+      text(shop,M+12,44,12.5,true,'1 1 1');
+      text('Generated: '+generated,M+CW-12,43,8,false,'0.88 0.96 0.92','right');
+      text(title,M+12,63,10.5,true,'1 1 1');
+      if(phone)text('Ph: '+phone,M+CW-12,63,8.5,false,'0.92 0.98 0.95','right');
+      y=92;
+      if(subtitle){
+        const sl=wrapText(subtitle,CW,8.5,false);
+        sl.forEach(l=>{text(l,M,y,8.5,false,'0.35 0.40 0.48');y+=12});
+        y+=4;
+      }
+    }else{
+      text(title,M,34,9,true,'0.15 0.20 0.28');
+      text(shop,M+CW,34,8,false,'0.42 0.47 0.55','right');
+      line(M,M+CW,40,'0.82 0.85 0.90',0.6);
+      y=54;
+    }
+  }
+  const ensure=h=>{if(y+h>H-BOT)newPage(false)};
+  newPage(true);
+  return{
+    section(head,rightTxt){
+      ensure(56);
+      rect(M,y,CW,21,'0.90 0.96 0.93');
+      rect(M,y,3.5,21,'0.043 0.478 0.294');
+      text(head,M+10,y+14,9.5,true,'0.04 0.35 0.21');
+      if(rightTxt)text(rightTxt,M+CW-8,y+14,8,false,'0.28 0.36 0.42','right');
+      y+=24;
+    },
+    table(cols,rows){
+      const drawHead=()=>{
+        rect(M,y,CW,19,'0.93 0.95 0.97');
+        line(M,M+CW,y+19,'0.76 0.81 0.87',0.6);
+        let cx=M;
+        cols.forEach(c=>{
+          const tx=c.align==='right'?cx+c.w-4:(c.align==='center'?cx+c.w/2:cx+4);
+          text(c.label,tx,y+13,8,true,'0.20 0.25 0.33',c.align||'left');
+          cx+=c.w;
+        });
+        y+=19;
+      };
+      ensure(38);drawHead();
+      if(!rows.length){
+        text('(No items)',M+6,y+13,8.5,false,'0.48 0.52 0.58');
+        y+=22;return;
+      }
+      rows.forEach((r,ri)=>{
+        const wrapped=cols.map((c,ci)=>wrapText(r[ci],c.w-8,8.3,false));
+        const maxL=Math.max(1,...wrapped.map(a=>a.length));
+        const rowH=maxL*11+8;
+        if(y+rowH>H-BOT){newPage(false);drawHead()}
+        if(ri%2===1)rect(M,y,CW,rowH,'0.975 0.982 0.992');
+        let cx=M;
+        cols.forEach((c,ci)=>{
+          const tx=c.align==='right'?cx+c.w-4:(c.align==='center'?cx+c.w/2:cx+4);
+          wrapped[ci].forEach((ln,li)=>text(ln,tx,y+12+li*11,8.3,false,'0.12 0.16 0.22',c.align||'left'));
+          cx+=c.w;
+        });
+        line(M,M+CW,y+rowH,'0.88 0.90 0.93',0.4);
+        y+=rowH;
+      });
+      y+=10;
+    },
+    note(txt){
+      const ls=wrapText(txt,CW,8.5,false);
+      ensure(ls.length*11+8);
+      ls.forEach(l=>{text(l,M,y+10,8.5,false,'0.35 0.40 0.48');y+=11.5});
+      y+=6;
+    },
+    download(filename){
+      const totalP=pages.length;
+      pages.forEach((pg,pi)=>{
+        cur=pg;
+        line(M,M+CW,H-36,'0.82 0.85 0.90',0.5);
+        text(shop+(phone?' | Ph: '+phone:'')+'  -  '+generated,M,H-24,7.5,false,'0.45 0.50 0.58');
+        text(`Page ${pi+1} of ${totalP}`,M+CW,H-24,7.5,false,'0.45 0.50 0.58','right');
+      });
+      const enc=new TextEncoder();
+      const kids=pages.map((_,i)=>`${6+2*i} 0 R`).join(' ');
+      const parts=[];let offset=0;
+      const pushStr=str=>{const b=enc.encode(str);parts.push(b);offset+=b.length};
+      pushStr('%PDF-1.4\n');
+      const offs=[0];
+      const addStrObj=body=>{
+        const id=offs.length;offs.push(offset);
+        pushStr(`${id} 0 obj\n${body}\nendobj\n`);
+      };
+      addStrObj('<< /Type /Catalog /Pages 2 0 R >>');
+      addStrObj(`<< /Type /Pages /Kids [${kids}] /Count ${totalP} >>`);
+      addStrObj('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
+      addStrObj('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>');
+      pages.forEach((pg,i)=>{
+        const st=pg.join('\n')+'\n';
+        const blen=enc.encode(st).length;
+        addStrObj(`<< /Length ${blen} >>\nstream\n${st}endstream`);
+        addStrObj(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${5+2*i} 0 R >>`);
+      });
+      const totalObjs=offs.length-1;
+      const xrefPos=offset;
+      let xref=`xref\n0 ${totalObjs+1}\n0000000000 65535 f \n`;
+      for(let i=1;i<=totalObjs;i++)xref+=String(offs[i]).padStart(10,'0')+' 00000 n \n';
+      xref+=`trailer\n<< /Size ${totalObjs+1} /Root 1 0 R >>\nstartxref\n${xrefPos}\n%%EOF\n`;
+      pushStr(xref);
+      const blob=new Blob(parts,{type:'application/pdf'});
+      const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filename;a.click();
+      setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+      toast('PDF downloaded: '+filename);
+    }
+  };
+}
+const slug=s=>pdfSafe(s).replace(/[^A-Za-z0-9]+/g,'-').replace(/^-|-$/g,'')||'Report';
+const daySlug=()=>today().split('/').reverse().join('-');
+const reqStatusLabel=st=>({pending:'Waiting for store',imported:'Taken for order',dismissed:'Not ordered'}[st||'pending']||'Waiting for store');
+
+function downloadSinglePharmacyPDF(reqId){
+  const q=S.requests.find(x=>x.id===reqId);if(!q)return toast('Order not found');
+  const from=roleLabel(q.by);
+  const doc=createPdfDoc({
+    title:`PHARMACY ORDER - ${from}`,
+    subtitle:`Submitted: ${new Date(q.date).toLocaleString()}  |  Status: ${reqStatusLabel(q.status)}  |  Total items: ${q.items.length}`
+  });
+  doc.section(`${from} - Requested Items`,`${q.items.length} item${q.items.length>1?'s':''}`);
+  doc.table(
+    [{label:'#',w:30,align:'center'},{label:'Product Name',w:225},{label:'Qty',w:48,align:'right'},{label:'Unit',w:60},{label:'Stockist (Auto)',w:160}],
+    q.items.map((it,i)=>[i+1,it.name,it.qty,it.unit||'',it.stockist||'-'])
+  );
+  doc.download(`${slug(from)}-Order-${daySlug()}.pdf`);
+}
+function downloadPharmacyListPDF(list,label){
+  if(!list.length)return toast('No pharmacy orders to export');
+  const totalItems=list.reduce((a,q)=>a+q.items.length,0);
+  const doc=createPdfDoc({
+    title:`PHARMACY ORDERS REPORT (${label})`,
+    subtitle:`${list.length} order list(s)  |  ${totalItems} total item(s)`
+  });
+  list.forEach(q=>{
+    const from=roleLabel(q.by);
+    doc.section(`${from} - ${new Date(q.date).toLocaleString()}`,`${reqStatusLabel(q.status)} | ${q.items.length} item${q.items.length>1?'s':''}`);
+    doc.table(
+      [{label:'#',w:30,align:'center'},{label:'Product Name',w:225},{label:'Qty',w:48,align:'right'},{label:'Unit',w:60},{label:'Stockist (Auto)',w:160}],
+      q.items.map((it,i)=>[i+1,it.name,it.qty,it.unit||'',it.stockist||'-'])
+    );
+  });
+  doc.download(`Pharmacy-Orders-${slug(label)}-${daySlug()}.pdf`);
+}
+function downloadPendingPharmacyPDF(){downloadPharmacyListPDF(pendingReqs(),'Pending')}
+function downloadFilteredPharmacyPDF(){
+  const list=getFilteredPharmacyOrders();
+  const label=(histPharm?roleLabel(histPharm):'All')+(histPStat?'-'+reqStatusLabel(histPStat):'');
+  downloadPharmacyListPDF(list,label);
+}
+function downloadSupplierPOPDF(poId,gi){
+  const po=getPO(poId);if(!po||!po.groups[gi])return toast('Order not found');
+  const g=po.groups[gi],s=stk(g.stockistId),ph=(s&&phoneOf(s))||g.phone||'';
+  const doc=createPdfDoc({
+    title:`PURCHASE ORDER - ${po.no}`,
+    subtitle:`Order Placed: ${new Date(po.date).toLocaleString()}  |  Status: ${g.sent?'Sent'+(g.sentAt?' ('+new Date(g.sentAt).toLocaleString()+')':''):'Not sent yet'}`
+  });
+  doc.section(`Supplier: ${g.name}`,(ph?'WhatsApp: +'+ph+' | ':'')+`${g.items.length} item${g.items.length>1?'s':''}`);
+  doc.table(
+    [{label:'#',w:35,align:'center'},{label:'Product Name',w:348},{label:'Qty',w:65,align:'right'},{label:'Unit',w:75}],
+    g.items.map((it,i)=>[i+1,it.name,it.qty,it.unit||''])
+  );
+  if(S.settings.footer)doc.note(S.settings.footer);
+  doc.download(`${slug(po.no)}-${slug(g.name)}.pdf`);
+}
+function downloadPOPDF(poId){
+  const po=getPO(poId);if(!po)return toast('Order not found');
+  const totalItems=po.groups.reduce((a,g)=>a+g.items.length,0);
+  const doc=createPdfDoc({
+    title:`PURCHASE ORDER - ${po.no}`,
+    subtitle:`Order Placed: ${new Date(po.date).toLocaleString()}  |  ${po.groups.length} supplier(s)  |  ${totalItems} item(s)`
+  });
+  po.groups.forEach(g=>{
+    const s=stk(g.stockistId),ph=(s&&phoneOf(s))||g.phone||'';
+    doc.section(`Supplier: ${g.name}`,(ph?'+'+ph+' | ':'')+(g.sent?'Sent':'Not sent')+` | ${g.items.length} item${g.items.length>1?'s':''}`);
+    doc.table(
+      [{label:'#',w:35,align:'center'},{label:'Product Name',w:348},{label:'Qty',w:65,align:'right'},{label:'Unit',w:75}],
+      g.items.map((it,i)=>[i+1,it.name,it.qty,it.unit||''])
+    );
+  });
+  if(S.settings.footer)doc.note(S.settings.footer);
+  doc.download(`${slug(po.no)}-All-Suppliers.pdf`);
+}
+function matchHistRange(iso,rng){
+  if(!rng||rng==='all')return true;
+  const d=new Date(iso),now=new Date();
+  if(rng==='today')return d.getFullYear()===now.getFullYear()&&d.getMonth()===now.getMonth()&&d.getDate()===now.getDate();
+  const days=rng==='7d'?7:30;
+  return (now.getTime()-d.getTime())<=days*24*60*60*1000;
+}
+function getFilteredSentGroups(forceSup){
+  const sup=forceSup!==undefined?forceSup:histSup;
+  const out=[];
+  S.history.forEach(po=>po.groups.forEach(g=>{
+    if(!g.sent)return;
+    if(sup&&g.name!==sup)return;
+    if(!matchHistRange(g.sentAt||po.date,histRange))return;
+    out.push({po,g});
+  }));
+  out.sort((a,b)=>new Date(b.g.sentAt||b.po.date)-new Date(a.g.sentAt||a.po.date));
+  return out;
+}
+function downloadSentHistoryPDF(onlySup){
+  const list=getFilteredSentGroups(onlySup);
+  if(!list.length)return toast('No sent orders match the filter');
+  const bySup={};
+  list.forEach(x=>{(bySup[x.g.name]=bySup[x.g.name]||[]).push(x)});
+  const names=Object.keys(bySup).sort((a,b)=>a.localeCompare(b));
+  const totalItems=list.reduce((a,x)=>a+x.g.items.length,0);
+  const rngLabel={all:'All dates',today:'Today','7d':'Last 7 days','30d':'Last 30 days'}[histRange]||'All dates';
+  const doc=createPdfDoc({
+    title:'SUPPLIER-WISE SENT ORDER HISTORY',
+    subtitle:`Supplier: ${onlySup||histSup||'All Suppliers'}  |  Range: ${rngLabel}  |  ${names.length} supplier(s)  |  ${list.length} sent order(s)  |  ${totalItems} item(s)`
+  });
+  names.forEach(name=>{
+    const entries=bySup[name];
+    const first=entries[0].g,s=stk(first.stockistId),ph=(s&&phoneOf(s))||first.phone||'';
+    const cntItems=entries.reduce((a,x)=>a+x.g.items.length,0);
+    doc.section(name,(ph?'WhatsApp: +'+ph+' | ':'')+`${entries.length} sent order(s) | ${cntItems} item(s)`);
+    const rows=[];
+    entries.forEach(({po,g})=>{
+      const sDt=new Date(g.sentAt||po.date).toLocaleString(),pDt=new Date(po.date).toLocaleString();
+      g.items.forEach(it=>rows.push([po.no,sDt,pDt,it.name,it.qty,it.unit||'']));
+    });
+    doc.table(
+      [{label:'PO No',w:86},{label:'Sent Date & Time',w:102},{label:'Placed Date',w:102},{label:'Product',w:145},{label:'Qty',w:38,align:'right'},{label:'Unit',w:50}],
+      rows
+    );
+  });
+  const tag=onlySup||histSup?slug(onlySup||histSup):'All-Suppliers';
+  doc.download(`Supplier-Sent-History-${tag}-${daySlug()}.pdf`);
+}
+function downloadPlacedHistoryPDF(){
+  if(!S.history.length)return toast('No placed orders yet');
+  const doc=createPdfDoc({
+    title:'ORDER PLACED HISTORY',
+    subtitle:`${S.history.length} purchase order(s) placed`
+  });
+  S.history.forEach(po=>{
+    const sentCnt=po.groups.filter(g=>g.sent).length;
+    doc.section(`${po.no} - ${new Date(po.date).toLocaleString()}`,`${po.groups.length} supplier(s) | ${sentCnt} sent`);
+    const rows=[];
+    po.groups.forEach(g=>{
+      const st=g.sent?'Sent':'Pending',sd=g.sentAt?new Date(g.sentAt).toLocaleString():'-';
+      g.items.forEach(it=>rows.push([g.name,it.name,it.qty,it.unit||'',st,sd]));
+    });
+    doc.table(
+      [{label:'Supplier',w:110},{label:'Product',w:150},{label:'Qty',w:38,align:'right'},{label:'Unit',w:48},{label:'Status',w:62},{label:'Sent Date',w:115}],
+      rows
+    );
+  });
+  doc.download(`Order-Placed-History-${daySlug()}.pdf`);
+}
+
+/* ============================ HISTORY ============================ */
+let histView='all',histSup='',histRange='all',histPharm='',histPStat='';
+function setHistView(v){histView=v;renderHistory()}
+function getFilteredPharmacyOrders(){
+  return [...S.requests].reverse().filter(q=>{
+    if(histPharm&&normBy(q.by)!==histPharm)return false;
+    if(histPStat&&(q.status||'pending')!==histPStat)return false;
+    return true;
+  });
+}
+function renderHistory(){
+  const sentGroups=[],pendPOs=[],allSupNames=new Set();
+  S.history.forEach(po=>{
+    let hasPend=false;
+    po.groups.forEach(g=>{
+      if(g.sent){sentGroups.push({po,g});allSupNames.add(g.name)}
+      else hasPend=true;
+    });
+    if(hasPend)pendPOs.push(po);
+  });
+  $('hfAll').textContent=`Order Placed History (${S.history.length})`;
+  $('hfSent').textContent=`Sent Order History (${sentGroups.length})`;
+  $('hfPend').textContent=`Not Sent Yet (${pendPOs.length})`;
+  if($('hfPharm'))$('hfPharm').textContent=`Pharmacy Orders (${S.requests.length})`;
+  $('hfAll').classList.toggle('on',histView==='all');
+  $('hfSent').classList.toggle('on',histView==='sent');
+  $('hfPend').classList.toggle('on',histView==='pending');
+  if($('hfPharm'))$('hfPharm').classList.toggle('on',histView==='pharmacy');
+
+  if(histView==='sent'){
+    const supOpts=[...allSupNames].sort((a,b)=>a.localeCompare(b));
+    if(histSup&&!supOpts.includes(histSup))histSup='';
+    const filtered=getFilteredSentGroups();
+    const bySup={};
+    filtered.forEach(x=>{(bySup[x.g.name]=bySup[x.g.name]||[]).push(x)});
+    const names=Object.keys(bySup).sort((a,b)=>a.localeCompare(b));
+    const bar=`<div class="row sub-bar" style="margin-bottom:12px;justify-content:space-between">
+      <div class="row">
+        <label class="small">Supplier: <select onchange="histSup=this.value;renderHistory()"><option value="">All Suppliers</option>${supOpts.map(n=>`<option value="${esc(n)}" ${n===histSup?'selected':''}>${esc(n)}</option>`).join('')}</select></label>
+        <label class="small">Period: <select onchange="histRange=this.value;renderHistory()">
+          <option value="all" ${histRange==='all'?'selected':''}>All dates</option>
+          <option value="today" ${histRange==='today'?'selected':''}>Today</option>
+          <option value="7d" ${histRange==='7d'?'selected':''}>Last 7 days</option>
+          <option value="30d" ${histRange==='30d'?'selected':''}>Last 30 days</option>
+        </select></label>
+      </div>
+      <button class="b" onclick="downloadSentHistoryPDF()">📄 Download Supplier-wise PDF</button>
+    </div>`;
+    if(!names.length){$('histBody').innerHTML=bar+'<span class="mut">No sent orders found for this filter.</span>';return}
+    $('histBody').innerHTML=bar+names.map(name=>{
+      const entries=bySup[name];
+      const first=entries[0].g,s=stk(first.stockistId),ph=(s&&phoneOf(s))||first.phone||'';
+      const itemCnt=entries.reduce((a,x)=>a+x.g.items.length,0);
+      const rows=[];
+      entries.forEach(({po,g})=>{
+        const sDt=new Date(g.sentAt||po.date).toLocaleString(),pDt=new Date(po.date).toLocaleString();
+        g.items.forEach(it=>rows.push(`<tr><td>${esc(sDt)}</td><td><b>${esc(po.no)}</b></td><td class="small mut">${esc(pDt)}</td><td>${esc(it.name)}</td><td>${it.qty}</td><td>${esc(it.unit||'')}</td></tr>`));
+      });
+      return `<div class="pocard sent">
+        <header><b style="font-size:15px">${esc(name)}</b>${ph?`<span class="tag ok">+${esc(ph)}</span>`:''}<span class="mut small">${entries.length} sent order${entries.length>1?'s':''} · ${itemCnt} item${itemCnt>1?'s':''}</span><span class="sp"></span>
+          <button class="b sec sm" onclick="downloadSentHistoryPDF(${esc(JSON.stringify(name))})">📄 Supplier PDF</button></header>
+        <div style="overflow:auto"><table><thead><tr><th>Sent Date &amp; Time</th><th>PO No</th><th>Placed Date</th><th>Product</th><th>Qty</th><th>Unit</th></tr></thead><tbody>${rows.join('')}</tbody></table></div>
+      </div>`;
+    }).join('');
+    return;
+  }
+
+  if(histView==='pharmacy'){
+    const list=getFilteredPharmacyOrders();
+    const lab={pending:['Waiting for store','sug'],imported:['Taken for order','ok'],dismissed:['Not ordered','new']};
+    const bar=`<div class="row sub-bar" style="margin-bottom:12px;justify-content:space-between">
+      <div class="row">
+        <label class="small">Pharmacy: <select onchange="histPharm=this.value;renderHistory()">
+          <option value="">All Pharmacies</option>
+          <option value="pharmacy1" ${histPharm==='pharmacy1'?'selected':''}>Pharmacy 1</option>
+          <option value="pharmacy2" ${histPharm==='pharmacy2'?'selected':''}>Pharmacy 2</option>
+          <option value="pharmacy3" ${histPharm==='pharmacy3'?'selected':''}>Pharmacy 3</option>
+          <option value="admin" ${histPharm==='admin'?'selected':''}>Admin</option>
+        </select></label>
+        <label class="small">Status: <select onchange="histPStat=this.value;renderHistory()">
+          <option value="">All statuses</option>
+          <option value="pending" ${histPStat==='pending'?'selected':''}>Waiting for store</option>
+          <option value="imported" ${histPStat==='imported'?'selected':''}>Taken for order</option>
+          <option value="dismissed" ${histPStat==='dismissed'?'selected':''}>Not ordered</option>
+        </select></label>
+      </div>
+      <button class="b" onclick="downloadFilteredPharmacyPDF()">📄 Download Pharmacy Orders PDF</button>
+    </div>`;
+    if(!list.length){$('histBody').innerHTML=bar+'<span class="mut">No pharmacy orders found.</span>';return}
+    $('histBody').innerHTML=bar+list.map(q=>{
+      const l=lab[q.status||'pending']||lab.pending;
+      return `<div class="pocard">
+        <header><b>📋 ${esc(roleLabel(q.by))}</b><span class="mut small">${esc(new Date(q.date).toLocaleString())}</span><span class="tag ${l[1]}">${l[0]}</span><span class="mut small">${q.items.length} item${q.items.length>1?'s':''}</span><span class="sp"></span>
+          <button class="b sec sm" onclick="downloadSinglePharmacyPDF(${q.id})">📄 Download PDF</button></header>
+        <div style="overflow:auto"><table><thead><tr><th>#</th><th>Product</th><th>Qty</th><th>Unit</th><th>Stockist (Auto)</th></tr></thead><tbody>
+          ${q.items.map((it,i)=>`<tr><td>${i+1}</td><td>${esc(it.name)}</td><td>${it.qty}</td><td>${esc(it.unit||'')}</td><td>${esc(it.stockist||'—')}</td></tr>`).join('')}
+        </tbody></table></div>
+      </div>`;
+    }).join('');
+    return;
+  }
+
+  const list=histView==='pending'?pendPOs:S.history;
+  const topBar=(histView==='all'&&S.history.length)?`<div class="row" style="margin-bottom:10px;justify-content:flex-end"><button class="b sec sm" onclick="downloadPlacedHistoryPDF()">📄 Download Order Placed History (PDF)</button></div>`:'';
+  $('histBody').innerHTML=topBar+(list.map(po=>`<details style="margin-bottom:8px"><summary><b>${esc(po.no)}</b> · ${new Date(po.date).toLocaleString()} · ${po.groups.length} stockist${po.groups.length>1?'s':''} · ${po.groups.filter(g=>g.sent).length} sent</summary>
+    <div id="histOpen-${po.id}" style="margin-top:8px"></div><button class="b red sm" onclick="delPO(${po.id})">Delete record</button></details>`).join('')||`<span class="mut">${histView==='pending'?'All placed orders have been sent.':'No orders yet.'}</span>`);
+  list.forEach(po=>{const el=$('histOpen-'+po.id);if(el)showPO(po,el,false)});
+}
+function delPO(id){if(!confirm('Delete this record?'))return;S.history=S.history.filter(p=>p.id!==id);save();renderHistory()}
+
+/* ============================ GOOGLE DRIVE SYNC ============================ */
+let driveTimer=null,driveState='idle',driveMsg='',driveBusy=false;
+function getDrive(){if(!S.settings.drive)S.settings.drive=defaultDrive();return S.settings.drive}
+function buildAppsScript(){
+  const d=getDrive();
+  const sec=JSON.stringify(($('drvSecret')?.value||d.secret).trim()||d.secret);
+  const fld=JSON.stringify(($('drvFolder')?.value||d.folder).trim()||'Pharmacy PO Maker Backups');
+  return [
+    '// Pharmacy PO Maker — Google Drive Auto-Backup Bridge',
+    '// Deploy as: Web app | Execute as: Me | Who has access: Anyone',
+    'const SECRET = ' + sec + ';',
+    'const DEFAULT_FOLDER_ID = ' + JSON.stringify(DEFAULT_DRIVE_FOLDER_ID) + ';',
+    'const DEFAULT_FOLDER = ' + fld + ';',
+    'const LATEST_FILE = "PO-Maker-Backup-LATEST.json";',
+    'const SHEET_NAME = "PO-Maker-Master-Records";',
+    '',
+    'function jsonOut(obj) {',
+    '  return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);',
+    '}',
+    'function doGet() {',
+    '  return ContentService.createTextOutput("Pharmacy PO Maker – Google Drive Sync is active.");',
+    '}',
+    'function getOrCreateFolder(parent, name) {',
+    '  const it = parent.getFoldersByName(name);',
+    '  return it.hasNext() ? it.next() : parent.createFolder(name);',
+    '}',
+    'function findFile(folder, name, mime) {',
+    '  const it = folder.getFilesByName(name);',
+    '  while (it.hasNext()) { const f = it.next(); if (!mime || f.getMimeType() === mime) return f; }',
+    '  return null;',
+    '}',
+    'function upsertTextFile(folder, name, content, mime) {',
+    '  const existing = findFile(folder, name, null);',
+    '  if (existing) { existing.setContent(content); return existing; }',
+    '  return folder.createFile(name, content, mime);',
+    '}',
+    'function writeSheetTab(ss, title, headers, rows) {',
+    '  let sh = ss.getSheetByName(title);',
+    '  if (!sh) sh = ss.insertSheet(title);',
+    '  sh.clearContents();',
+    '  const safe = v => typeof v === "number" ? v : (/^[=+\\-@]/.test(String(v == null ? "" : v)) ? "\'" + String(v) : String(v == null ? "" : v));',
+    '  const all = [headers].concat((rows || []).map(r => r.map(safe)));',
+    '  sh.getRange(1, 1, all.length, headers.length).setValues(all);',
+    '  sh.getRange(1, 1, 1, headers.length).setFontWeight("bold");',
+    '  sh.setFrozenRows(1);',
+    '}',
+    'function updateMasterSheet(folder, tables) {',
+    '  let file = findFile(folder, SHEET_NAME, MimeType.GOOGLE_SHEETS);',
+    '  let ss;',
+    '  if (file) { ss = SpreadsheetApp.openById(file.getId()); }',
+    '  else { ss = SpreadsheetApp.create(SHEET_NAME); file = DriveApp.getFileById(ss.getId()); file.moveTo(folder); }',
+    '  const hadDefault = ss.getSheetByName("Sheet1");',
+    '  writeSheetTab(ss, "Suppliers", ["Stockist Name","WhatsApp Number","Products Mapped","Added Date"], tables.suppliers);',
+    '  writeSheetTab(ss, "Product Mapping", ["Product Name","Default Stockist","All Stockists","Default Unit"], tables.mapping);',
+    '  writeSheetTab(ss, "Order Placed History", ["PO No","Order Placed Date","Stockist","WhatsApp","Product","Qty","Unit","Status","Sent Date"], tables.ordersPlaced);',
+    '  writeSheetTab(ss, "Sent Order History", ["PO No","Sent Date","Order Placed Date","Stockist","WhatsApp","Product","Qty","Unit"], tables.ordersSent);',
+    '  writeSheetTab(ss, "Pharmacy Lists", ["Submitted Date","From","Product","Qty","Unit","Stockist","Status"], tables.staffLists);',
+    '  if (hadDefault && ss.getSheets().length > 1) { try { ss.deleteSheet(hadDefault); } catch (e) {} }',
+    '  return file.getUrl();',
+    '}',
+    'function doPost(e) {',
+    '  try {',
+    '    const req = JSON.parse((e && e.postData && e.postData.contents) || "{}");',
+    '    if (req.secret !== SECRET) return jsonOut({ ok: false, error: "Invalid sync secret key" });',
+    '    const folderName = (req.folder || DEFAULT_FOLDER).trim() || DEFAULT_FOLDER;',
+    '    let folder = null;',
+    '    if (folderName === DEFAULT_FOLDER && DEFAULT_FOLDER_ID) { try { folder = DriveApp.getFolderById(DEFAULT_FOLDER_ID); } catch (e) {} }',
+    '    if (!folder) folder = getOrCreateFolder(DriveApp.getRootFolder(), folderName);',
+    '    if (req.action === "ping") {',
+    '      const latest = findFile(folder, LATEST_FILE, null);',
+    '      const sheet = findFile(folder, SHEET_NAME, MimeType.GOOGLE_SHEETS);',
+    '      return jsonOut({ ok: true, folderUrl: folder.getUrl(), sheetUrl: sheet ? sheet.getUrl() : "", hasBackup: !!latest, lastUpdated: latest ? latest.getLastUpdated().toISOString() : "" });',
+    '    }',
+    '    if (req.action === "restore") {',
+    '      const latest = findFile(folder, LATEST_FILE, null);',
+    '      if (!latest) return jsonOut({ ok: false, error: "No backup file found in Drive folder yet." });',
+    '      return jsonOut({ ok: true, folderUrl: folder.getUrl(), lastUpdated: latest.getLastUpdated().toISOString(), data: JSON.parse(latest.getBlob().getDataAsString()) });',
+    '    }',
+    '    if (req.action === "backup") {',
+    '      const jsonStr = JSON.stringify(req.backup, null, 2);',
+    '      upsertTextFile(folder, LATEST_FILE, jsonStr, MimeType.PLAIN_TEXT);',
+    '      const snaps = getOrCreateFolder(folder, "Daily Snapshots");',
+    '      const dayTag = req.dayTag || Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");',
+    '      upsertTextFile(snaps, "PO-Maker-Backup-" + dayTag + ".json", jsonStr, MimeType.PLAIN_TEXT);',
+    '      const sheetUrl = req.tables ? updateMasterSheet(folder, req.tables) : "";',
+    '      return jsonOut({ ok: true, folderUrl: folder.getUrl(), sheetUrl: sheetUrl, syncedAt: new Date().toISOString() });',
+    '    }',
+    '    return jsonOut({ ok: false, error: "Unknown action" });',
+    '  } catch (err) {',
+    '    return jsonOut({ ok: false, error: String(err) });',
+    '  }',
+    '}'
+  ].join('\n');
+}
+function copyAppsScript(){
+  if(!driveUnlocked)return requireDriveUnlock(copyAppsScript);
+  const code=buildAppsScript();
+  if($('driveScriptPreview')&&!$('driveScriptPreview').classList.contains('hide'))$('driveScriptPreview').textContent=code;
+  navigator.clipboard.writeText(code).then(()=>toast('Apps Script copied ✓')).catch(()=>{toggleScriptPreview(true);toast('Copy from the script box below')});
+}
+function downloadAppsScript(){if(!driveUnlocked)return requireDriveUnlock(downloadAppsScript);dl('GoogleDriveSync-Code.gs',buildAppsScript(),'text/plain')}
+function toggleScriptPreview(forceOpen){
+  if(!driveUnlocked)return requireDriveUnlock(()=>toggleScriptPreview(forceOpen));
+  const el=$('driveScriptPreview');if(!el)return;
+  const show=forceOpen===true?true:el.classList.contains('hide');
+  el.classList.toggle('hide',!show);
+  if(show)el.textContent=buildAppsScript();
+}
+function regenDriveSecret(){
+  if(!driveUnlocked)return requireDriveUnlock(regenDriveSecret);
+  if(!confirm('Generate a new sync secret key? You will need to update SECRET in your Apps Script deployment.'))return;
+  const k=randKey();getDrive().secret=k;$('drvSecret').value=k;save(true);
+  if($('driveScriptPreview')&&!$('driveScriptPreview').classList.contains('hide'))$('driveScriptPreview').textContent=buildAppsScript();
+  toast('New key generated');
+}
+function buildDriveTables(){
+  const suppliers=S.stockists.map(s=>[s.name,phoneOf(s)?'+'+phoneOf(s):'',S.products.filter(p=>p.offers.some(o=>o.id===s.id)).length,s.createdAt?new Date(s.createdAt).toLocaleString():'']);
+  const mapping=S.products.map(p=>[p.name,stk(p.stockistId)?.name||'',p.offers.filter(o=>stk(o.id)).map(o=>stk(o.id).name).join(', '),p.unit||defUnit()]);
+  const ordersPlaced=[],sentList=[];
+  S.history.forEach(po=>{
+    const pDate=new Date(po.date).toLocaleString();
+    po.groups.forEach(g=>{
+      const s=stk(g.stockistId),ph=(s&&phoneOf(s))||g.phone||'';
+      const sDate=g.sentAt?new Date(g.sentAt).toLocaleString():(g.sent?pDate:'');
+      g.items.forEach(it=>{
+        ordersPlaced.push([po.no,pDate,g.name,ph?'+'+ph:'',it.name,it.qty,it.unit||'',g.sent?'Sent':'Not sent',sDate]);
+        if(g.sent)sentList.push({ts:new Date(g.sentAt||po.date).getTime(),row:[po.no,sDate,pDate,g.name,ph?'+'+ph:'',it.name,it.qty,it.unit||'']});
+      });
+    });
+  });
+  sentList.sort((a,b)=>b.ts-a.ts);
+  const lab={pending:'Waiting for store',imported:'Taken for order',dismissed:'Not ordered'};
+  const staffLists=[];
+  [...S.requests].reverse().forEach(q=>{
+    const dStr=new Date(q.date).toLocaleString(),st=lab[q.status||'pending']||'Waiting for store',frm=roleLabel(q.by);
+    q.items.forEach(it=>staffLists.push([dStr,frm,it.name,it.qty,it.unit||'',it.stockist||'',st]));
+  });
+  return{suppliers,mapping,ordersPlaced,ordersSent:sentList.map(x=>x.row),staffLists};
+}
+async function driveCall(payload){
+  const d=getDrive();
+  if(!d.url)throw new Error('Google Drive Web App URL is not set yet');
+  const res=await fetch(d.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(Object.assign({secret:d.secret,folder:d.folder},payload)),redirect:'follow'});
+  const txt=await res.text();
+  let j;try{j=JSON.parse(txt)}catch(e){throw new Error('Drive endpoint did not return JSON — check "Who has access: Anyone" in Apps Script Deploy settings.')}
+  if(!j.ok)throw new Error(j.error||'Drive sync failed');
+  return j;
+}
+let driveUnlocked=false,driveAfterUnlock=null;
+function requireDriveUnlock(nextFn){
+  if(ROLE!=='admin')return;
+  if(driveUnlocked){if(nextFn)nextFn();return}
+  driveAfterUnlock=nextFn||null;
+  $('drvPinIn').value='';$('drvPinErr').textContent='';
+  $('drivePinBox').classList.remove('hide');
+  setTimeout(()=>$('drvPinIn').focus(),20);
+}
+function cancelDrivePin(){driveAfterUnlock=null;$('drivePinBox').classList.add('hide')}
+function submitDrivePin(){
+  if(pinMatch('secure',$('drvPinIn').value.trim(),SECURE_PIN_HASH)){
+    driveUnlocked=true;$('drvPinIn').value='';$('drivePinBox').classList.add('hide');
+    renderDriveUI();toast('Drive options unlocked ✓');
+    const fn=driveAfterUnlock;driveAfterUnlock=null;if(fn)fn();
+  }else{
+    $('drvPinErr').textContent='Wrong passcode';$('drvPinIn').value='';$('drvPinIn').focus();
+  }
+}
+function lockDrive(){driveUnlocked=false;renderDriveUI();toast('Drive options locked')}
+function renderDriveUI(){
+  const d=getDrive(),pill=$('drivePill'),badge=$('drvBadge'),st=$('drvStatus'),sh=$('btnOpenSheet');
+  if($('driveLocked'))$('driveLocked').classList.toggle('hide',driveUnlocked);
+  if($('driveBody'))$('driveBody').classList.toggle('hide',!driveUnlocked);
+  if($('btnLockDrive'))$('btnLockDrive').classList.toggle('hide',!driveUnlocked);
+  if(pill){
+    pill.classList.remove('pill-ok','pill-warn','pill-bad');
+    if(!d.url){pill.textContent='☁ Drive: Setup'}
+    else if(driveState==='syncing'){pill.textContent='☁ Syncing…';pill.classList.add('pill-warn')}
+    else if(driveState==='pending'){pill.textContent='☁ Drive: Pending…';pill.classList.add('pill-warn')}
+    else if(driveState==='error'){pill.textContent='☁ Drive: Retry';pill.classList.add('pill-bad')}
+    else if(d.lastSync){pill.textContent='☁ Drive synced';pill.classList.add('pill-ok');pill.title='Last synced: '+new Date(d.lastSync).toLocaleString()+' (click to sync now)'}
+    else{pill.textContent='☁ Drive linked';pill.classList.add('pill-ok')}
+  }
+  if(badge){
+    badge.className='tag '+(!d.url?'sug':driveState==='error'?'new':'ok');
+    badge.textContent=!d.url?'Not linked':driveState==='syncing'?'Syncing…':driveState==='error'?'Sync error':d.lastSync?'Connected · synced':'Connected';
+  }
+  if(sh)sh.classList.toggle('hide',!d.sheetUrl);
+  if(st){
+    if(driveMsg)st.textContent=driveMsg;
+    else if(d.lastSync)st.textContent='Last backed up to Google Drive: '+new Date(d.lastSync).toLocaleString();
+    else if(d.url)st.textContent='Drive URL saved. Click "Backup to Drive Now" to run your first backup.';
+    else st.textContent='Not connected yet. Follow the 1-minute setup above to auto-backup everything to your Google Drive.';
+  }
+}
+function drivePillClick(){
+  if(ROLE!=='admin')return;
+  requireDriveUnlock(()=>{
+    const d=getDrive();
+    if(!d.url){showTab('settings');return}
+    syncToDrive(false);
+  });
+}
+function openDriveFolder(){if(ROLE!=='admin')return;requireDriveUnlock(()=>window.open(getDrive().folderUrl||DEFAULT_DRIVE_URL,'_blank'))}
+function openDriveSheet(){if(ROLE!=='admin')return;requireDriveUnlock(()=>{const u=getDrive().sheetUrl;if(u)window.open(u,'_blank');else toast('Run a backup first to create the Google Sheet')})}
+function readDriveInputs(){
+  const d=getDrive();
+  d.url=$('drvUrl').value.trim();
+  d.folder=$('drvFolder').value.trim()||'Pharmacy PO Maker Backups';
+  d.secret=$('drvSecret').value.trim()||d.secret||randKey();
+  d.auto=$('drvAuto').checked;
+  save(true);
+}
+async function saveAndTestDrive(){
+  if(!driveUnlocked)return requireDriveUnlock(saveAndTestDrive);
+  readDriveInputs();
+  const d=getDrive();
+  if(!d.url)return toast('Paste your Google Apps Script Web App URL first');
+  driveState='syncing';driveMsg='Testing connection to Google Drive…';renderDriveUI();
+  try{
+    const r=await driveCall({action:'ping'});
+    if(r.folderUrl)d.folderUrl=r.folderUrl;
+    if(r.sheetUrl)d.sheetUrl=r.sheetUrl;
+    driveState='ok';
+    driveMsg='Connected to Google Drive ✓'+(r.hasBackup&&r.lastUpdated?' (existing backup from '+new Date(r.lastUpdated).toLocaleString()+')':' (folder ready)');
+    if($('driveGuide'))$('driveGuide').open=false;
+    save(true);renderDriveUI();toast('Google Drive connected ✓');
+    if(S.stockists.length||S.products.length||S.history.length||S.requests.length)syncToDrive(false);
+  }catch(e){
+    driveState='error';driveMsg='Connection failed: '+e.message;renderDriveUI();alert('Could not connect to Google Drive:\n'+e.message);
+  }
+}
+function scheduleDriveSync(){
+  const d=getDrive();
+  if(!d.url||!d.auto)return;
+  driveState='pending';renderDriveUI();
+  clearTimeout(driveTimer);
+  driveTimer=setTimeout(()=>syncToDrive(true),3500);
+}
+async function syncToDrive(isAuto){
+  if(!isAuto&&!driveUnlocked)return requireDriveUnlock(()=>syncToDrive(false));
+  if(!isAuto&&$('drvUrl')&&!$('tab-settings').classList.contains('hide'))readDriveInputs();
+  const d=getDrive();
+  if(!d.url){if(!isAuto)toast('Connect Google Drive in Settings first');return}
+  if(driveBusy)return;
+  const empty=!S.stockists.length&&!S.products.length&&!S.history.length&&!S.requests.length;
+  if(empty&&isAuto)return;
+  if(empty&&!isAuto&&!confirm('Your local data is empty. Overwrite your Google Drive backup with empty data?'))return;
+  clearTimeout(driveTimer);driveTimer=null;
+  driveBusy=true;driveState='syncing';driveMsg='Backing up everything to Google Drive…';renderDriveUI();
+  try{
+    const dayTag=today().split('/').reverse().join('-');
+    const r=await driveCall({action:'backup',dayTag,backup:S,tables:buildDriveTables()});
+    d.lastSync=r.syncedAt||new Date().toISOString();
+    if(r.folderUrl)d.folderUrl=r.folderUrl;
+    if(r.sheetUrl)d.sheetUrl=r.sheetUrl;
+    driveState='ok';driveMsg='Backed up to Google Drive at '+new Date(d.lastSync).toLocaleString()+' ✓';
+    save(true);renderDriveUI();
+    if(!isAuto)toast('Backed up to Google Drive ✓');
+  }catch(e){
+    driveState='error';driveMsg='Backup failed: '+e.message;renderDriveUI();
+    if(!isAuto)toast('Drive backup failed: '+e.message);
+  }finally{driveBusy=false}
+}
+async function restoreFromDrive(){
+  if(!driveUnlocked)return requireDriveUnlock(restoreFromDrive);
+  if($('drvUrl'))readDriveInputs();
+  const d=getDrive();
+  if(!d.url)return toast('Paste your Google Apps Script Web App URL first');
+  driveState='syncing';driveMsg='Fetching latest backup from Google Drive…';renderDriveUI();
+  try{
+    const r=await driveCall({action:'restore'});
+    const s=r.data;
+    if(!s||!s.settings)throw new Error('Backup file in Drive is invalid');
+    const summary=`${(s.stockists||[]).length} stockists, ${(s.products||[]).length} products, ${(s.history||[]).length} placed orders, ${(s.requests||[]).length} staff lists`;
+    if(!confirm(`Restore backup from Google Drive?\nLast updated: ${r.lastUpdated?new Date(r.lastUpdated).toLocaleString():'unknown'}\nContains: ${summary}\n\nThis will replace data in this browser.`)){
+      driveState='ok';driveMsg='Restore cancelled.';renderDriveUI();return;
+    }
+    const curDrive=Object.assign({},d);
+    S=migrate(s);
+    if(!S.settings.drive.url)S.settings.drive=curDrive;
+    else{S.settings.drive.url=curDrive.url;S.settings.drive.secret=curDrive.secret;S.settings.drive.folder=curDrive.folder}
+    if(r.folderUrl)S.settings.drive.folderUrl=r.folderUrl;
+    driveState='ok';driveMsg='Restored from Google Drive ✓';
+    save(true);init();toast('Restored from Google Drive ✓');
+  }catch(e){
+    driveState='error';driveMsg='Restore failed: '+e.message;renderDriveUI();alert('Could not restore from Google Drive:\n'+e.message);
+  }
+}
+
+/* ============================ SETTINGS / DATA ============================ */
+function renderSettings(){
+  const d=getDrive();
+  $('drvUrl').value=d.url||'';$('drvFolder').value=d.folder||'Pharmacy PO Maker Backups';$('drvSecret').value=d.secret||'';$('drvAuto').checked=d.auto!==false;
+  if($('driveGuide'))$('driveGuide').open=!d.url;
+  renderDriveUI();
+  ['setPinAdmin','setPinMgr','setPinP1','setPinP2','setPinP3'].forEach(id=>$(id).value='');
+  $('setUnit').innerHTML=unitOpts(defUnit());$('setShop').value=S.settings.shop;$('setPhone').value=S.settings.phone;$('setCC').value=S.settings.cc;$('setFooter').value=S.settings.footer
+}
+function saveSettings(){
+  if(ROLE!=='admin')return;
+  const pinMap={admin:$('setPinAdmin').value.trim(),manager:$('setPinMgr').value.trim(),pharmacy1:$('setPinP1').value.trim(),pharmacy2:$('setPinP2').value.trim(),pharmacy3:$('setPinP3').value.trim()};
+  for(const k in pinMap){if(pinMap[k]&&pinMap[k].length<4)return alert('Passcode must be at least 4 characters')}
+  Object.assign(S.settings,{unit:$('setUnit').value,shop:$('setShop').value.trim(),phone:$('setPhone').value.trim(),cc:$('setCC').value.trim()||'91',footer:$('setFooter').value.trim()});
+  S.settings.pins=Object.assign({},DEFAULT_PINS,S.settings.pins||{});
+  for(const k in pinMap){if(pinMap[k])S.settings.pins[k]=pinHash(k,pinMap[k])}
+  ['setPinAdmin','setPinMgr','setPinP1','setPinP2','setPinP3'].forEach(id=>$(id).value='');
+  save();toast('Saved')}
+function dl(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click()}
+function exportBackup(){if(ROLE!=='admin')return;dl(`po-maker-backup-${new Date().toISOString().slice(0,10)}.json`,JSON.stringify(S),'application/json')}
+function restoreBackup(inp){if(ROLE!=='admin')return;const f=inp.files[0];if(!f)return;f.text().then(t=>{try{const s=JSON.parse(t);if(!s.settings)throw 0;const curDrive=Object.assign({},getDrive());S=migrate(s);if(!S.settings.drive.url&&curDrive.url)S.settings.drive=curDrive;save();init();toast('Restored')}catch(e){alert('Invalid backup file')}});inp.value=''}
+function resetAll(){if(ROLE!=='admin')return;const c=prompt('Enter the erase passcode to continue:');if(c===null)return;if(!pinMatch('secure',c.trim(),SECURE_PIN_HASH))return alert('Wrong passcode – nothing was erased.');if(confirm('Erase ALL stockists, products, mapping and history?')){const curDrive=Object.assign({},getDrive());S=blank();S.settings.drive=curDrive;save(true);init();toast('Local data erased (Drive backup preserved)')}}
+function loadSample(){
+  if(ROLE!=='admin')return;
+  if(!confirm('Add demo stockists and products?'))return;
+  [['Sujith Pharma','9847000001'],['KP & KC Enterprises','9847000002'],['Omega ENT Distributors','9847000003'],['Fairly Drugs','9847000004']].forEach(a=>getOrMakeStockist(a[0],a[1]));
+  const m=`Dolo 650, Sujith Pharma\nDolo 650, Fairly Drugs\nPan 40, Sujith Pharma\nAzithral 500, KP & KC Enterprises\nAugmentin 625, KP & KC Enterprises\nOmega-3 Capsule, Omega ENT Distributors\nCetirizine 10, Fairly Drugs\nAmoxyclav 625, Fairly Drugs`;
+  $('mapBulk').value=m;bulkMap();toast('Sample data loaded');
+}
+
+/* ============================ UI ============================ */
+/* ---------------- pharmacy order entry ---------------- */
+const blankRow=()=>({id:uid(),name:'',qty:'',unit:defUnit(),ticked:false});
+let liveDrafts={};
+function draftKey(){return ROLES[ROLE]&&ROLES[ROLE].kind==='pharmacy'?ROLE:'admin'}
+function syncSavedDrafts(){
+  S.staffDrafts=S.staffDrafts||{};
+  const k=draftKey();
+  if(liveDrafts[k]){
+    S.staffDrafts[k]=liveDrafts[k]
+      .filter(r=>r.ticked&&r.name&&r.name.trim())
+      .map(r=>({id:r.id,name:r.name.trim(),qty:r.qty,unit:r.unit,ticked:true}));
+  }
+}
+function curDraft(){
+  const k=draftKey();
+  if(!liveDrafts[k]){
+    const saved=((S.staffDrafts&&S.staffDrafts[k])||[])
+      .filter(r=>r.ticked&&r.name&&r.name.trim())
+      .map(r=>({id:r.id||uid(),name:r.name,qty:r.qty??'',unit:r.unit||defUnit(),ticked:true}));
+    liveDrafts[k]=saved;
+    const need=Math.max(2,5-saved.length);
+    for(let i=0;i<need;i++)liveDrafts[k].push(blankRow());
+  }
+  return liveDrafts[k];
+}
+function updateStaffSavedBadge(){
+  const n=curDraft().filter(r=>r.ticked&&r.name&&r.name.trim()).length;
+  const el=$('staffSaved');
+  if(el)el.innerHTML=n?`<span class="tag ok">✓ ${n} saved item${n>1?'s':''}</span>`:'';
+}
+function fetchInfo(name){
+  if(!name.trim())return '';
+  const r=findProduct(name);
+  if(r.exact){const sid=bestStockist(r.exact),st=stk(sid),n=r.exact.offers.filter(o=>stk(o.id)).length;
+    return st?`<span class="tag ok">${esc(st.name)}</span>${n>1?` <span class="mut small">(${n} stockists)</span>`:''}`:'<span class="tag new">no stockist yet – store will assign</span>'}
+  if(r.suggest)return `<span class="tag sug">Did you mean “${esc(r.suggest.name)}”?</span>`;
+  return '<span class="tag new">New product – store will assign</span>';
+}
+function renderStaff(){
+  const d=curDraft();
+  if($('staffTitle'))$('staffTitle').textContent='✍ '+(ROLE?roleLabel(ROLE)+' – ':'')+'Needed / short products';
+  if($('staffHistTitle'))$('staffHistTitle').innerHTML='📜 '+(ROLE==='admin'?'All pharmacy':'My')+' order history <span class="mut small" style="font-weight:400">(auto-removed after 24 hrs)</span>';
+  $('prodList').innerHTML=S.products.map(p=>`<option value="${esc(p.name)}">`).join('');
+  $('staffBody').innerHTML=d.map((r,i)=>{
+    return `<tr id="sr-${r.id}" class="${r.ticked?'ticked':''}"><td>${i+1}</td><td><input id="sn-${r.id}" list="prodList" value="${esc(r.name)}" placeholder="Type product name…" style="width:100%;min-width:220px" onchange="staffSet(${r.id},'name',this.value)"></td>
+    <td><input id="sq-${r.id}" class="qty" type="number" min="1" placeholder="1" value="${r.qty}" onchange="staffSet(${r.id},'qty',this.value)" onkeydown="if(event.key==='Enter')staffNext(${r.id})"></td>
+    <td><select id="su-${r.id}" onchange="staffSet(${r.id},'unit',this.value)">${unitOpts(r.unit)}</select></td>
+    <td id="sf-${r.id}">${fetchCell(r)}</td>
+    <td style="text-align:center"><button type="button" class="tick-btn ${r.ticked?'on':''}" id="st-${r.id}" onclick="staffTick(${r.id})" title="${r.ticked?'Saved (click to untick)':'Tick to save item'}">✓</button></td>
+    <td><button class="b red sm" onclick="staffDel(${r.id})">✕</button></td></tr>`}).join('');
+  updateStaffSavedBadge();
+  const mine=pendingReqs().filter(q=>ROLE==='admin'||normBy(q.by)===ROLE);
+  $('staffInfo').textContent=mine.length?`${mine.length} list(s) waiting for store`:'';renderStaffHistory();
+}
+function fetchCell(r){const f=findProduct(r.name);return fetchInfo(r.name)+((!f.exact&&f.suggest)?` <button class="b sec sm" onclick="staffUseSuggest(${r.id})">Use</button>`:'')}
+function syncRowFromDom(r){
+  const ni=$('sn-'+r.id),qi=$('sq-'+r.id),ui=$('su-'+r.id);
+  if(ni){const v=ni.value.trim(),prev=r.name,f=findProduct(v);r.name=f.exact?f.exact.name:v;ni.value=r.name;if(v!==prev&&f.exact&&f.exact.unit){r.unit=f.exact.unit;if(ui)ui.innerHTML=unitOpts(r.unit)}}
+  if(qi){const q=qi.value;r.qty=q?Math.max(1,+q||1):'';qi.value=r.qty}
+  if(ui)r.unit=ui.value||r.unit;
+}
+function staffSet(id,k,v){
+  const r=curDraft().find(x=>x.id===id);if(!r)return;
+  if(k==='name'){v=v.trim();const f=findProduct(v);r.name=f.exact?f.exact.name:v;if(f.exact&&f.exact.unit)r.unit=f.exact.unit;
+    const i=$('sn-'+id);if(i)i.value=r.name;const u=$('su-'+id);if(u)u.innerHTML=unitOpts(r.unit);
+    if(!r.name&&r.ticked){r.ticked=false;const tr=$('sr-'+id),tb=$('st-'+id);if(tr)tr.classList.remove('ticked');if(tb)tb.classList.remove('on')}}
+  else if(k==='qty'){r.qty=v?Math.max(1,+v||1):'';const q=$('sq-'+id);if(q)q.value=r.qty}
+  else r[k]=v;
+  const c=$('sf-'+id);if(c)c.innerHTML=fetchCell(r);
+  if(r.ticked){syncSavedDrafts();save();updateStaffSavedBadge()}
+}
+function staffTick(id){
+  const d=curDraft(),r=d.find(x=>x.id===id);if(!r)return;
+  syncRowFromDom(r);
+  const c=$('sf-'+id);if(c)c.innerHTML=fetchCell(r);
+  if(!r.ticked){
+    if(!r.name.trim()){toast('Enter product name first');const ni=$('sn-'+id);if(ni)ni.focus();return}
+    r.ticked=true;
+    syncSavedDrafts();save();
+    const hasBlank=d.some(x=>!x.ticked&&!x.name.trim());
+    if(!hasBlank){d.push(blankRow());renderStaff()}
+    else{
+      const tr=$('sr-'+id),tb=$('st-'+id);
+      if(tr)tr.classList.add('ticked');
+      if(tb){tb.classList.add('on');tb.title='Saved (click to untick)'}
+      updateStaffSavedBadge();
+    }
+    toast('Saved ✓');
+  }else{
+    r.ticked=false;
+    syncSavedDrafts();save();
+    const tr=$('sr-'+id),tb=$('st-'+id);
+    if(tr)tr.classList.remove('ticked');
+    if(tb){tb.classList.remove('on');tb.title='Tick to save item'}
+    updateStaffSavedBadge();
+    toast('Unticked');
+  }
+}
+function staffUseSuggest(id){const r=curDraft().find(x=>x.id===id);const f=findProduct(r.name);if(f.suggest){r.name=f.suggest.name;if(f.suggest.unit)r.unit=f.suggest.unit}if(r.ticked){syncSavedDrafts();save()}renderStaff()}
+function staffAddRow(){const r=blankRow();curDraft().push(r);renderStaff();$('sn-'+r.id).focus()}
+function staffDel(id){const k=draftKey();liveDrafts[k]=curDraft().filter(x=>x.id!==id);if(!liveDrafts[k].length)liveDrafts[k]=[blankRow(),blankRow()];syncSavedDrafts();save();renderStaff()}
+function staffNext(id){const d=curDraft();const i=d.findIndex(x=>x.id===id);if(i===d.length-1)return staffAddRow();$('sn-'+d[i+1].id).focus()}
+let pendingItems=null,pendingSentIds=null;
+function staffSubmit(){
+  const d=curDraft();
+  d.forEach(syncRowFromDom);
+  const filled=d.filter(r=>r.name.trim());
+  if(!filled.length)return toast('Type at least one product');
+  const ticked=filled.filter(r=>r.ticked);
+  const chosen=ticked.length?ticked:filled;
+  const skipped=ticked.length?(filled.length-ticked.length):0;
+  const items=[];
+  chosen.forEach(r=>{
+    const cn=cleanName(r.name),f=findProduct(cn),nm=f.exact?f.exact.name:cn,st=f.exact?stk(bestStockist(f.exact)):null,qty=+r.qty||1;
+    const dup=items.find(x=>canon(x.name)===canon(nm)&&x.unit===r.unit);
+    if(dup)dup.qty+=qty;
+    else items.push({name:nm,qty,unit:r.unit,stockist:st?st.name:''});
+  });
+  pendingItems=items;
+  pendingSentIds=new Set(chosen.map(r=>r.id));
+  $('confirmList').innerHTML=`<p class="small mut">From <b>${esc(roleLabel(ROLE))}</b> – ${items.length} item${items.length>1?'s':''}:</p>`+
+    (skipped?`<p class="small" style="color:var(--warn)">Note: ${skipped} unticked row${skipped>1?'s are':' is'} not included. Click <b>No, go back</b> and tick ✓ to include ${skipped>1?'them':'it'}.</p>`:'')+
+    `<table><thead><tr><th>#</th><th>Product</th><th>Qty</th><th>Stockist</th></tr></thead><tbody>${items.map((i,n)=>`<tr><td>${n+1}</td><td>${esc(i.name)}</td><td>${i.qty} ${esc(i.unit||'')}</td><td>${esc(i.stockist||'—')}</td></tr>`).join('')}</tbody></table>`;
+  $('confirmBox').classList.remove('hide');
+}
+function staffCancel(){pendingItems=null;pendingSentIds=null;$('confirmBox').classList.add('hide')}
+function staffConfirm(){
+  if(!pendingItems)return;
+  S.requests.push({id:uid(),date:new Date().toISOString(),by:ROLE||'pharmacy1',status:'pending',items:pendingItems});
+  const n=pendingItems.length,k=draftKey();
+  liveDrafts[k]=curDraft().filter(r=>!pendingSentIds.has(r.id));
+  while(liveDrafts[k].length<5)liveDrafts[k].push(blankRow());
+  pendingItems=null;pendingSentIds=null;$('confirmBox').classList.add('hide');
+  syncSavedDrafts();save();renderStaff();toast('Order list sent ✓ ('+n+' item'+(n>1?'s':'')+')');
+}
+const DAY_MS=24*60*60*1000;
+const isWithin24h=q=>Date.now()-new Date(q.date).getTime()<DAY_MS;
+function purgeOldRequests(){
+  const before=S.requests.length;
+  S.requests=S.requests.filter(q=>(q.status||'pending')==='pending'||isWithin24h(q));
+  if(S.requests.length!==before)save();
+}
+function renderStaffHistory(){
+  purgeOldRequests();
+  const lab={pending:['Waiting for store','sug'],imported:['Taken for order','ok'],dismissed:['Not ordered','new']};
+  const rows=[];
+  const isAdm=ROLE==='admin';
+  [...S.requests].filter(q=>isWithin24h(q)&&(isAdm||normBy(q.by)===ROLE)).reverse().forEach(q=>{
+    const l=lab[q.status||'pending']||lab.pending;
+    q.items.forEach(i=>rows.push(`<tr><td>${esc(new Date(q.date).toLocaleString())}</td><td class="admin-only">${esc(roleLabel(q.by))}</td><td>${esc(i.name)}</td><td>${i.qty}</td><td>${esc(i.unit||'')}</td><td>${esc(i.stockist||'—')}</td><td><span class="tag ${l[1]}">${l[0]}</span></td></tr>`));
+  });
+  $('staffHist').innerHTML=rows.slice(0,300).join('')||`<tr><td colspan=${isAdm?7:6} class="mut">No lists sent in the last 24 hours.</td></tr>`;
+}
+
+/* ---------------- login / roles ---------------- */
+let ROLE=sessionStorage.getItem('po_role');
+if(ROLE&&!ROLES[ROLE]){ROLE=null;sessionStorage.removeItem('po_role')}
+let loginRole='admin';
+function showTab(t){
+  if(!ROLE||!ROLES[ROLE]||!ROLES[ROLE].tabs.includes(t))return;
+  document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));
+  document.querySelectorAll('main>section').forEach(s=>s.classList.toggle('hide',s.id!=='tab-'+t));
+  if(t==='po')renderDraft();if(t==='staff')renderStaff();if(t==='stockists')renderStockists();if(t==='map')renderMap();if(t==='history')renderHistory();if(t==='settings')renderSettings();
+}
+$('nav').addEventListener('click',e=>{const t=e.target.dataset.t;if(!t)return;showTab(t)});
+function pickRole(r){
+  loginRole=ROLES[r]?r:'admin';
+  document.querySelectorAll('#roleBtns button').forEach(b=>b.classList.toggle('on',b.dataset.r===loginRole));
+  $('lgErr').textContent='';$('lgPin').focus();
+}
+function doLogin(){
+  const v=$('lgPin').value.trim();
+  const pins=Object.assign({},DEFAULT_PINS,S.settings.pins||{});
+  if(pinMatch(loginRole,v,pins[loginRole])){ROLE=loginRole;sessionStorage.setItem('po_role',ROLE);$('lgPin').value='';applyRole()}
+  else{$('lgErr').textContent='Wrong passcode';$('lgPin').value='';$('lgPin').focus()}
+}
+function logout(){ROLE=null;liveDrafts={};driveUnlocked=false;driveAfterUnlock=null;sessionStorage.removeItem('po_role');applyRole()}
+function applyRole(){
+  const info=ROLE&&ROLES[ROLE];
+  if(!info||ROLE!=='admin'){driveUnlocked=false;driveAfterUnlock=null}
+  document.body.classList.remove('role-admin','role-manager','role-pharmacy');
+  if(info)document.body.classList.add('role-'+info.kind);
+  $('login').classList.toggle('hide',!!info);$('confirmBox').classList.add('hide');$('drivePinBox').classList.add('hide');
+  $('who').textContent=info?('👤 '+info.label):'';
+  if(info){init();showTab(info.home)}else{pickRole('admin')}
+}
+function init(){liveDrafts={};purgeOldRequests();hdr();renderDraft();renderStockists();renderMap();renderSettings();renderStaff();renderDriveUI();$('results').innerHTML='';$('results').dataset.poid=''}
+window.addEventListener('storage',e=>{if(e.key!==KEY)return;S=load();purgeOldRequests();hdr();renderDriveUI();if(ROLE==='admin'||ROLE==='manager')renderRequests();if(ROLE)renderStaffHistory()});
+window.addEventListener('online',()=>{if(driveState==='error'||driveState==='pending')syncToDrive(true)});
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'&&driveTimer)syncToDrive(true)});
+applyRole();
+setInterval(()=>{if(!ROLE)return;purgeOldRequests();renderStaffHistory()},60*1000);
+</script>
+</body>
+</html>
