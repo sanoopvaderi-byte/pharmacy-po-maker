@@ -113,6 +113,21 @@
   .unmap-btn{background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5;padding:1px 7px;font-size:11px;font-weight:600;border-radius:10px;cursor:pointer;line-height:16px;display:inline-flex;align-items:center;transition:.15s}
   .unmap-btn:hover{background:#dc2626;color:#fff;border-color:#b91c1c}
   .row-pick{margin-top:6px;padding:8px;border-radius:8px;border:1px solid var(--line);background:#f8fafc}
+  .mp-toggle{display:inline-flex;align-items:center;gap:8px;cursor:pointer;user-select:none;padding:4px 10px;border-radius:999px;border:1px solid var(--line);background:#f8fafc;font-size:12.5px;font-weight:600;color:var(--ink);transition:.15s}
+  .mp-toggle:hover{border-color:var(--pri)}
+  .mp-toggle input{display:none}
+  .mp-switch{width:34px;height:18px;border-radius:999px;background:#cbd5e1;position:relative;transition:.2s;flex-shrink:0}
+  .mp-switch::after{content:'';position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.25);transition:.2s}
+  .mp-toggle input:checked + .mp-switch{background:var(--pri)}
+  .mp-toggle input:checked + .mp-switch::after{transform:translateX(16px)}
+  .mp-toggle.on{background:#e3f6ec;border-color:var(--pri);color:#085d38}
+  .stk-pick.all-open{max-height:320px;overflow-y:auto;padding:8px;border:1px solid var(--line);border-radius:8px;background:#fafbfd}
+  .mp-results{margin-top:6px;border:1px solid var(--line);border-radius:8px;background:#fafbfd;overflow:hidden}
+  .mp-res-head{padding:5px 10px;font-size:11.5px;font-weight:600;color:var(--mut);background:#f1f5f9;border-bottom:1px solid var(--line)}
+  .mp-res-row{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;padding:6px 10px;border-bottom:1px solid var(--line);cursor:pointer;font-size:13px;transition:.1s}
+  .mp-res-row:last-child{border-bottom:none}
+  .mp-res-row:hover{background:#eef8f2}
+  .mp-mapped-box{margin-top:6px;padding:8px 10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px}
   body.dark .stk-chip{background:#0f172a;border-color:#475569;color:#e2e8f0}
   body.dark .stk-chip:hover{border-color:#34d399}
   body.dark .stk-chip.on{background:#064e3b;border-color:#10b981;color:#6ee7b7}
@@ -120,6 +135,15 @@
   body.dark .unmap-btn{background:#450a0a;color:#fca5a5;border-color:#7f1d1d}
   body.dark .unmap-btn:hover{background:#dc2626;color:#fff}
   body.dark .row-pick{background:#0f172a;border-color:#334155}
+  body.dark .mp-toggle{background:#0f172a;border-color:#475569;color:#e2e8f0}
+  body.dark .mp-toggle.on{background:#064e3b;border-color:#10b981;color:#6ee7b7}
+  body.dark .mp-switch{background:#475569}
+  body.dark .stk-pick.all-open{background:#0f172a;border-color:#334155}
+  body.dark .mp-results{background:#0f172a;border-color:#334155}
+  body.dark .mp-res-head{background:#1e293b;border-color:#334155}
+  body.dark .mp-res-row{border-color:#334155}
+  body.dark .mp-res-row:hover{background:#0b2e1f}
+  body.dark .mp-mapped-box{background:#052e16;border-color:#166534;color:#dcfce7}
   .chat-box{min-height:240px;max-height:420px;overflow:auto;display:flex;flex-direction:column;gap:8px;padding:12px;border:1px solid var(--line);border-radius:10px;background:#f8fafc}
   .chat-msg{max-width:82%;padding:8px 12px;border-radius:12px;border:1px solid var(--line);background:#fff;align-self:flex-start}
   .chat-msg.me{align-self:flex-end;background:#dcfce7;border-color:#9fd6bb}
@@ -263,11 +287,18 @@
 <!-- ===================== MAPPING ===================== -->
 <section id="tab-map" class="hide">
   <div class="card">
-    <h2>Add / map a product to stockists</h2>
-    <div class="hint">Type or choose a product name, then tick <b>one or multiple stockists</b> below at the same time and click <b>+ Add / Map</b>. Extra/missing spaces or CAPITAL/small letters (e.g. <code>Dolo 650</code>, <code>dolo650</code>) are matched automatically as one product.</div>
+    <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:6px">
+      <h2 style="margin:0">Add / map a product to stockists</h2>
+      <label id="mpShowAllWrap" class="mp-toggle" title="Toggle ON to display all suppliers, or keep OFF and use the supplier search bar">
+        <input type="checkbox" id="mpShowAll" onchange="toggleMpShowAll(this.checked)">
+        <span class="mp-switch"></span>
+        <span id="mpShowAllLbl">Show all suppliers: OFF</span>
+      </label>
+    </div>
+    <div class="hint">Search a <b>product</b> to view its mapped suppliers, or search a <b>supplier</b> to tick &amp; map. Turn ON <b>Show all suppliers</b> when you want to add multiple suppliers from the full list.</div>
     <div class="row">
-      <input id="mpName" list="prodList" placeholder="Product name (e.g. Dolo 650)" style="flex:1;min-width:200px" oninput="previewMapMatch()" onchange="previewMapMatch()" onkeydown="if(event.key==='Enter')addSingleMap()">
-      <input id="mpStkFilter" placeholder="Filter stockists…" style="width:170px" oninput="renderMpStkChips()">
+      <input id="mpName" list="prodList" placeholder="🔍 Search / enter product name (e.g. Dolo 650)" style="flex:1.2;min-width:200px" oninput="previewMapMatch()" onchange="previewMapMatch()" onkeydown="if(event.key==='Enter')addSingleMap()">
+      <input id="mpStkFilter" placeholder="🔍 Search supplier…" style="flex:0.8;min-width:170px" oninput="renderMpStkChips()">
       <button id="mpAddBtn" class="b" onclick="addSingleMap()">+ Add / Map</button>
       <button class="b sec sm" onclick="clearMpSel()">Clear</button>
     </div>
@@ -287,7 +318,7 @@
   <div class="card">
     <div class="row" style="margin-bottom:8px">
       <h2 style="margin:0">Product master</h2>
-      <input id="mapSearch" placeholder="Search…" oninput="renderMap()" style="width:220px">
+      <input id="mapSearch" placeholder="🔍 Search product or supplier…" oninput="renderMap()" style="width:240px">
       <label class="small"><input type="checkbox" id="mapUnm" onchange="renderMap()"> Show only unmapped</label>
       <span class="mut small" id="mapCount"></span>
     </div>
@@ -876,40 +907,89 @@ function renderStockists(){
 function delStockist(id){if(!confirm('Delete this stockist? Its products become unmapped.'))return;mpSel.delete(id);S.stockists=S.stockists.filter(s=>s.id!==id);S.products.forEach(p=>{p.offers=p.offers.filter(o=>o.id!==id);if(p.stockistId===id){p.stockistId=p.offers[0]?p.offers[0].id:null;p.pinned=false}});S.draft.forEach(r=>{if(r.stockistId===id)r.stockistId=null});save();renderStockists();renderMap();renderDraft()}
 
 /* ============================ MAPPING ============================ */
-let mpSel=new Set(),openRowPickId=null;
+let mpSel=new Set(),openRowPickId=null,mpShowAll=false,rowPickFilter='';
+function toggleMpShowAll(on){
+  mpShowAll=!!on;
+  const cb=$('mpShowAll'),wrap=$('mpShowAllWrap'),lbl=$('mpShowAllLbl');
+  if(cb)cb.checked=mpShowAll;
+  if(wrap)wrap.classList.toggle('on',mpShowAll);
+  if(lbl)lbl.textContent=mpShowAll?`Show all suppliers: ON (${S.stockists.length})`:'Show all suppliers: OFF';
+  renderMpStkChips();
+}
 function updateMpBtn(){
   const b=$('mpAddBtn');if(!b)return;
   const n=mpSel.size;
   b.textContent=n?`+ Add / Map (${n} stockist${n>1?'s':''})`:'+ Add / Map';
 }
+function renderMpChip(s,ex,exIds){
+  const on=mpSel.has(s.id),mapped=exIds.has(s.id);
+  return `<label class="stk-chip ${on?'on':''} ${mapped?'mapped-chip':''}">
+    <input type="checkbox" ${on?'checked':''} onchange="toggleMpStk(${s.id},this.checked)">
+    <span>${esc(s.name)}</span>
+    ${mapped?`<span class="tag ok" style="padding:0 5px;font-size:10px;line-height:16px;border-radius:6px">mapped</span><button type="button" class="unmap-btn" onclick="event.preventDefault();event.stopPropagation();unmapProductStockist(${ex.id},${s.id})" title="Click to unmap ${esc(s.name)} from ${esc(ex.name)}">✕ Unmap</button>`:''}
+  </label>`;
+}
 function renderMpStkChips(){
   const host=$('mpStkList');if(!host)return;
+  const cb=$('mpShowAll'),wrap=$('mpShowAllWrap'),lbl=$('mpShowAllLbl');
+  if(cb)cb.checked=mpShowAll;
+  if(wrap)wrap.classList.toggle('on',mpShowAll);
+  if(lbl)lbl.textContent=mpShowAll?`Show all suppliers: ON (${S.stockists.length})`:'Show all suppliers: OFF';
+
   const fq=norm($('mpStkFilter')?.value||'');
   const v=cleanName($('mpName')?.value||'');
   const ex=v?S.products.find(x=>canon(x.name)===canon(v)):null;
   const exIds=new Set(ex?ex.offers.map(o=>o.id):[]);
-  const list=[...S.stockists].sort((a,b)=>a.name.localeCompare(b.name)).filter(s=>!fq||norm(s.name).includes(fq));
-  if(!S.stockists.length){host.innerHTML='<span class="mut small">Register stockists first in the Stockists tab.</span>';updateMpBtn();return}
-  host.innerHTML=list.length?list.map(s=>{
-    const on=mpSel.has(s.id),mapped=exIds.has(s.id);
-    return `<label class="stk-chip ${on?'on':''} ${mapped?'mapped-chip':''}">
-      <input type="checkbox" ${on?'checked':''} onchange="toggleMpStk(${s.id},this.checked)">
-      <span>${esc(s.name)}</span>
-      ${mapped?`<span class="tag ok" style="padding:0 5px;font-size:10px;line-height:16px;border-radius:6px">mapped</span><button type="button" class="unmap-btn" onclick="event.preventDefault();event.stopPropagation();unmapProductStockist(${ex.id},${s.id})" title="Click to unmap ${esc(s.name)} from ${esc(ex.name)}">✕ Unmap</button>`:''}
-    </label>`;
-  }).join(''):'<span class="mut small">No matching stockists.</span>';
+  if(!S.stockists.length){
+    host.classList.remove('all-open');
+    host.innerHTML='<span class="mut small">Register stockists first in the Stockists tab.</span>';
+    updateMpBtn();return;
+  }
+  const allSorted=[...S.stockists].sort((a,b)=>a.name.localeCompare(b.name));
+
+  if(!mpShowAll && !fq){
+    host.classList.remove('all-open');
+    const selectedChips=allSorted.filter(s=>mpSel.has(s.id)).map(s=>renderMpChip(s,ex,exIds)).join('');
+    if(selectedChips){
+      host.innerHTML=`<div style="width:100%" class="mut small">Selected to map (search another supplier above or toggle <b>Show all suppliers</b> ON to add more):</div>${selectedChips}`;
+    }else{
+      host.innerHTML=`<span class="mut small">Supplier list hidden (${S.stockists.length} suppliers) — search in <b>🔍 Search supplier…</b> above, or toggle <b>Show all suppliers</b> ON to browse all.</span>`;
+    }
+    updateMpBtn();return;
+  }
+
+  const list=fq?allSorted.filter(s=>norm(s.name).includes(fq)):allSorted;
+  host.classList.toggle('all-open',mpShowAll && !fq && list.length>20);
+
+  let html='';
+  if(fq && mpSel.size){
+    const matchIds=new Set(list.map(s=>s.id));
+    const extraSel=allSorted.filter(s=>mpSel.has(s.id)&&!matchIds.has(s.id));
+    if(extraSel.length){
+      html+=`<div style="width:100%" class="mut small">Already ticked (${extraSel.length}):</div>${extraSel.map(s=>renderMpChip(s,ex,exIds)).join('')}<div style="width:100%;border-top:1px dashed var(--line);margin:2px 0"></div>`;
+    }
+  }
+  html+=list.length?list.map(s=>renderMpChip(s,ex,exIds)).join(''):'<span class="mut small">No matching stockists.</span>';
+  host.innerHTML=html;
   updateMpBtn();
 }
 function toggleMpStk(sid,checked){
   if(checked)mpSel.add(sid);else mpSel.delete(sid);
   renderMpStkChips();
 }
-function clearMpSel(){mpSel.clear();if($('mpStkFilter'))$('mpStkFilter').value='';renderMpStkChips()}
+function clearMpSel(){
+  mpSel.clear();
+  if($('mpName'))$('mpName').value='';
+  if($('mpMatch'))$('mpMatch').innerHTML='';
+  if($('mpStkFilter'))$('mpStkFilter').value='';
+  renderMpStkChips();
+}
 function previewMapMatch(){
   const el=$('mpMatch');if(!el)return;
   const v=cleanName($('mpName').value);
   if(!v){el.innerHTML='';renderMpStkChips();return}
-  const ex=S.products.find(x=>canon(x.name)===canon(v));
+  const cv=canon(v),nv=norm(v);
+  const ex=S.products.find(x=>canon(x.name)===cv);
   if(ex){
     const sups=ex.offers.filter(o=>stk(o.id)).map(o=>stk(o.id));
     const supsHtml=sups.map(s=>`
@@ -918,17 +998,40 @@ function previewMapMatch(){
         <button type="button" class="unmap-btn" onclick="unmapProductStockist(${ex.id},${s.id})" title="Unmap ${esc(s.name)} from ${esc(ex.name)}">✕ Unmap</button>
       </span>`).join('');
     el.innerHTML=`
-      <div style="margin-top:6px;padding:8px 10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px">
+      <div class="mp-mapped-box">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
-          <span><span class="tag ok">Product found: <b>${esc(ex.name)}</b></span> ${sups.length?`<span class="small" style="color:#166534;font-weight:600;margin-left:4px">Currently mapped suppliers (${sups.length}):</span>`:'<span class="mut small" style="margin-left:6px">(No suppliers mapped yet)</span>'}</span>
+          <span><span class="tag ok">Product found: <b>${esc(ex.name)}</b></span> ${sups.length?`<span class="small" style="font-weight:600;margin-left:4px">Currently mapped suppliers (${sups.length}):</span>`:'<span class="mut small" style="margin-left:6px">(No suppliers mapped yet)</span>'}</span>
           ${sups.length>1?`<button type="button" class="b red sm" style="padding:1px 8px;font-size:11px" onclick="unmapAllStockists(${ex.id})">✕ Unmap all</button>`:''}
         </div>
         ${sups.length?`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px">${supsHtml}</div>`:''}
       </div>`;
   }else{
-    const f=findProduct(v);
-    if(f.exact||f.suggest){const m=f.exact||f.suggest;el.innerHTML=`<span class="tag sug">Similar product</span> “${esc(m.name)}” already exists — check spelling if it is the same product.`}
-    else el.innerHTML='<span class="mut small">New product will be created — tick one or more stockists below</span>';
+    const matches=nv.length>=2?S.products.filter(p=>norm(p.name).includes(nv)||(cv&&canon(p.name).includes(cv))).sort((a,b)=>{
+      const as=norm(a.name).startsWith(nv)?0:1,bs=norm(b.name).startsWith(nv)?0:1;
+      return as-bs||a.name.localeCompare(b.name);
+    }):[];
+    if(matches.length){
+      const shown=matches.slice(0,8);
+      const rows=shown.map(p=>{
+        const sups=p.offers.filter(o=>stk(o.id)).map(o=>stk(o.id));
+        const supTags=sups.length
+          ? sups.map(s=>`<span class="tag ok" style="padding:1px 6px;font-size:11px;display:inline-flex;align-items:center;gap:4px">${esc(s.name)} <button type="button" class="unmap-btn" style="padding:0 4px;font-size:10px;line-height:13px" onclick="event.stopPropagation();unmapProductStockist(${p.id},${s.id})" title="Unmap ${esc(s.name)}">✕</button></span>`).join(' ')
+          : '<span class="tag new" style="font-size:11px">Unmapped</span>';
+        return `<div class="mp-res-row" onclick="selectProductForMap(${p.id})" title="Click to select ${esc(p.name)}">
+          <span><b>${esc(p.name)}</b></span>
+          <span style="display:flex;flex-wrap:wrap;gap:4px;align-items:center">${supTags}</span>
+        </div>`;
+      }).join('');
+      const moreNote=matches.length>shown.length?` (showing top ${shown.length} of ${matches.length})`:'';
+      el.innerHTML=`<div class="mp-results">
+        <div class="mp-res-head">Matching products with suppliers${moreNote} — click a product to select, or click ✕ to unmap</div>
+        ${rows}
+      </div>`;
+    }else{
+      const f=findProduct(v);
+      if(f.exact||f.suggest){const m=f.exact||f.suggest;el.innerHTML=`<span class="tag sug">Similar product</span> “${esc(m.name)}” already exists — <a href="#" onclick="selectProductForMap(${m.id});return false">select it</a> or check spelling.`}
+      else el.innerHTML='<span class="mut small">New product will be created — search a supplier above or toggle <b>Show all suppliers</b> ON to tick stockists.</span>';
+    }
   }
   renderMpStkChips();
 }
@@ -946,8 +1049,6 @@ function unmapProductStockist(pid,sid){
   mpSel.delete(sid);
   save();
   renderMap();
-  previewMapMatch();
-  renderMpStkChips();
   renderStockists();
   renderDraft();
   toast(`Unmapped "${sName}" from ${p.name} ✓`);
@@ -961,14 +1062,13 @@ function unmapAllStockists(pid){
   mpSel.clear();
   save();
   renderMap();
-  previewMapMatch();
-  renderMpStkChips();
   renderStockists();
   renderDraft();
   toast(`Unmapped all suppliers from ${p.name} ✓`);
 }
-function selectProductForMap(name){
-  $('mpName').value=name;
+function selectProductForMap(pid){
+  const p=S.products.find(x=>x.id===pid);if(!p)return;
+  $('mpName').value=p.name;
   previewMapMatch();
   $('mpName').focus();
   $('tab-map').scrollIntoView({behavior:'smooth'});
@@ -1007,6 +1107,15 @@ function bulkMap(){
   $('mapBulk').value='';save();renderMap();renderStockists();renderDraft();
   toast(`${created+merged} mapped (${created} new, ${merged} added to existing)`)
 }
+function filterRowPick(inp){
+  rowPickFilter=inp.value;
+  const q=norm(rowPickFilter);
+  const box=inp.parentElement.querySelector('.stk-pick');
+  if(!box)return;
+  box.querySelectorAll('.stk-chip').forEach(ch=>{
+    ch.style.display=(!q||norm(ch.textContent).includes(q))?'':'none';
+  });
+}
 function mapRowCells(p){
   const offs=p.offers.filter(o=>stk(o.id));
   const ids=new Set(offs.map(o=>o.id));
@@ -1014,19 +1123,26 @@ function mapRowCells(p){
   const allS=[...S.stockists].sort((a,b)=>a.name.localeCompare(b.name));
   const defCell=`<select onchange="mapSet(${p.id},this.value)">${stockistOpts(p.stockistId)}</select>${p.pinned?` <span class="tag sug" title="Always used for this product">📌 fixed <a href="#" onclick="unpin(${p.id});return false">✕</a></span>`:''}`;
   const chips=offs.map(o=>`<span class="tag ok" style="margin:2px;padding:3px 8px;display:inline-flex;align-items:center;gap:5px;border-radius:12px">${esc(stk(o.id).name)} <button type="button" class="unmap-btn" style="padding:0 5px;font-size:10px;line-height:14px;border-radius:8px" onclick="unmapProductStockist(${p.id},${o.id})" title="Unmap supplier">✕</button></span>`).join(' ');
-  const pickTray=open?`<div class="row-pick"><div class="stk-pick" style="margin-top:0">${allS.map(s=>`<label class="stk-chip ${ids.has(s.id)?'on':''}"><input type="checkbox" ${ids.has(s.id)?'checked':''} onchange="toggleRowOffer(${p.id},${s.id},this.checked)"><span>${esc(s.name)}</span></label>`).join('')||'<span class="mut small">No stockists registered.</span>'}</div><div class="row" style="margin-top:6px;justify-content:flex-end"><button class="b sec sm" onclick="toggleRowPick(${p.id})">Done</button></div></div>`:'';
+  const rfq=norm(rowPickFilter);
+  const pickTray=open?`<div class="row-pick"><input value="${esc(rowPickFilter)}" placeholder="🔍 Filter suppliers…" style="width:200px;margin-bottom:6px" oninput="filterRowPick(this)"><div class="stk-pick" style="margin-top:0;max-height:200px;overflow-y:auto">${allS.map(s=>{const vis=(!rfq||norm(s.name).includes(rfq))?'':'display:none';return `<label class="stk-chip ${ids.has(s.id)?'on':''}" style="${vis}"><input type="checkbox" ${ids.has(s.id)?'checked':''} onchange="toggleRowOffer(${p.id},${s.id},this.checked)"><span>${esc(s.name)}</span></label>`}).join('')||'<span class="mut small">No stockists registered.</span>'}</div><div class="row" style="margin-top:6px;justify-content:flex-end"><button class="b sec sm" onclick="toggleRowPick(${p.id})">Done</button></div></div>`:'';
   const stkCell=`<div>${chips}${chips?' ':''}<button class="b sec sm" style="margin-top:2px" onclick="toggleRowPick(${p.id})">${open?'Done':'+ Select stockists'}</button></div>${pickTray}`;
   return {defCell,stkCell};
 }
 function renderMap(){
-  renderMpStkChips();
+  if($('mpName')&&$('mpName').value.trim())previewMapMatch();
+  else renderMpStkChips();
   $('prodList').innerHTML=S.products.map(p=>`<option value="${esc(p.name)}">`).join('');
   const q=norm($('mapSearch').value),cq=canon($('mapSearch').value),un=$('mapUnm').checked;
-  const list=S.products.filter(p=>(!q||norm(p.name).includes(q)||(cq&&canon(p.name).includes(cq)))&&(!un||!p.stockistId)).sort((a,b)=>a.name.localeCompare(b.name));
-  $('mapCount').textContent=list.length+' shown';
+  const list=S.products.filter(p=>{
+    if(un&&p.stockistId)return false;
+    if(!q)return true;
+    if(norm(p.name).includes(q)||(cq&&canon(p.name).includes(cq)))return true;
+    return (p.offers||[]).some(o=>{const st=stk(o.id);return st&&(norm(st.name).includes(q)||(cq&&canon(st.name).includes(cq)))});
+  }).sort((a,b)=>a.name.localeCompare(b.name));
+  $('mapCount').textContent=list.length>300?`Showing 300 of ${list.length} (search to filter)`:list.length+' shown';
   $('mapBody').innerHTML=list.slice(0,300).map(p=>{
     const {defCell,stkCell}=mapRowCells(p);
-    return `<tr id="mr-${p.id}" class="${p.stockistId?'':'unmapped'}"><td><b style="cursor:pointer;color:var(--pri2)" onclick="selectProductForMap('${esc(p.name)}')" title="Click to view & unmap suppliers in mapping box above">${esc(p.name)}</b></td>
+    return `<tr id="mr-${p.id}" class="${p.stockistId?'':'unmapped'}"><td><b style="cursor:pointer;color:var(--pri2)" onclick="selectProductForMap(${p.id})" title="Click to view & unmap suppliers in mapping box above">${esc(p.name)}</b></td>
     <td id="md-${p.id}">${defCell}</td>
     <td id="ms-${p.id}">${stkCell}</td>
     <td><button class="b red sm" onclick="delProduct(${p.id})">✕</button></td></tr>`}).join('')||'<tr><td colspan=4 class="mut">No products yet – they are added automatically when you map them while ordering, or via bulk import above.</td></tr>';
@@ -1040,6 +1156,7 @@ function refreshMapRow(p){
 }
 function toggleRowPick(pid){
   const prev=openRowPickId;
+  rowPickFilter='';
   openRowPickId=openRowPickId===pid?null:pid;
   if(prev&&prev!==pid){const pp=S.products.find(x=>x.id===prev);if(pp)refreshMapRow(pp)}
   const p=S.products.find(x=>x.id===pid);if(p)refreshMapRow(p);
