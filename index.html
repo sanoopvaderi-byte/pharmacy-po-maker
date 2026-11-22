@@ -1437,6 +1437,9 @@ function buildAppsScript(){
     '    } else msgMap[String(m.id)] = m;',
     '  });',
     '  out.messages = Object.keys(msgMap).map(k => msgMap[k]).sort((a, b) => new Date(a.date) - new Date(b.date)).slice(-500);',
+    '  const sd = Object.assign({}, existing.staffDrafts || {});',
+    '  Object.keys(incoming.staffDrafts || {}).forEach(k => { if ((incoming.staffDrafts[k] || []).length || !sd[k]) sd[k] = incoming.staffDrafts[k]; });',
+    '  out.staffDrafts = sd;',
     '  return out;',
     '}',
     'function doPost(e) {',
@@ -1477,9 +1480,15 @@ function buildAppsScript(){
     '      const base = cur.data || req.fallback || { settings: {}, stockists: [], products: [], draft: [], requests: [], staffDrafts: {}, messages: [], history: [], seq: 0, uid: 1 };',
     '      base.requests = base.requests || [];',
     '      if (req.request && !base.requests.some(x => String(x.id) === String(req.request.id))) base.requests.push(req.request);',
+    '      if (req.draftKey && req.draftRows !== undefined) { base.staffDrafts = base.staffDrafts || {}; base.staffDrafts[req.draftKey] = req.draftRows || []; }',
     '      base._rev = nowRev;',
     '      upsertTextFile(folder, LATEST_FILE, JSON.stringify(base, null, 2), MimeType.PLAIN_TEXT);',
     '      return jsonOut({ ok: true, rev: nowRev, data: base, syncedAt: new Date().toISOString() });',
+    '    }',
+    '    if (req.action === "save_draft") {',
+    '      const base = cur.data || req.fallback || { settings: {}, stockists: [], products: [], draft: [], requests: [], staffDrafts: {}, messages: [], history: [], seq: 0, uid: 1 };',
+    '      if (req.draftKey) { base.staffDrafts = base.staffDrafts || {}; base.staffDrafts[req.draftKey] = req.draftRows || []; base._rev = nowRev; upsertTextFile(folder, LATEST_FILE, JSON.stringify(base, null, 2), MimeType.PLAIN_TEXT); }',
+    '      return jsonOut({ ok: true, rev: String(base._rev || nowRev), syncedAt: new Date().toISOString() });',
     '    }',
     '    if (req.action === "send_message") {',
     '      const base = cur.data || req.fallback || { settings: {}, stockists: [], products: [], draft: [], requests: [], staffDrafts: {}, messages: [], history: [], seq: 0, uid: 1 };',
@@ -1747,8 +1756,8 @@ function applyCloudData(raw,rev,folderUrl,sheetUrl){
   if(folderUrl)S.settings.drive.folderUrl=folderUrl;
   if(sheetUrl)S.settings.drive.sheetUrl=sheetUrl;
   if(localDraft&&(!S.draft||!S.draft.length))S.draft=localDraft;
-  // Preserve ticked drafts on this device when Drive-only or while draft push is in flight
-  if((!localServerMode||draftPushBusy)&&ROLE&&ROLES[ROLE]&&ROLES[ROLE].kind==='pharmacy'&&localStaffDrafts[ROLE]&&localStaffDrafts[ROLE].length){
+  // Preserve ticked drafts on this device while a draft push is in flight
+  if(draftPushBusy&&ROLE&&ROLES[ROLE]&&ROLES[ROLE].kind==='pharmacy'&&localStaffDrafts[ROLE]&&localStaffDrafts[ROLE].length){
     S.staffDrafts[ROLE]=localStaffDrafts[ROLE];
   }
   if(rev)lastDriveRev=String(rev);
@@ -1797,13 +1806,14 @@ async function drivePushRequest(reqObj,dk,dRows){
   }catch(e){scheduleDriveSync()}
 }
 async function drivePushDraft(dk,dRows){
-  if(!localServerMode)return;
+  const d=getDrive();if(!localServerMode&&(!d.url||!d.auto))return;
   draftPushBusy=true;
   try{
     const r=await driveCall({action:'save_draft',draftKey:dk,draftRows:dRows||[],fallback:S});
     if(r.rev)lastDriveRev=String(r.rev);
-    localLastSync=r.syncedAt||new Date().toISOString();
-    driveState='ok';renderDriveUI();
+    if(localServerMode)localLastSync=r.syncedAt||new Date().toISOString();
+    else d.lastSync=r.syncedAt||new Date().toISOString();
+    driveState='ok';save(true);renderDriveUI();
   }catch(e){scheduleDriveSync()}
   finally{draftPushBusy=false}
 }
@@ -2041,7 +2051,7 @@ function syncRowFromDom(r){
 }
 function saveStaffDraftChange(){
   syncSavedDrafts();
-  if(localServerMode){
+  if(localServerMode||(getDrive().url&&getDrive().auto)){
     const k=draftKey();
     save(true);
     drivePushDraft(k,S.staffDrafts[k]||[]);
