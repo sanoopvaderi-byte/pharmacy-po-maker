@@ -62,10 +62,6 @@
   #login.hide{display:none}
   .modal{position:fixed;inset:0;z-index:90;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center}
   .modal.hide{display:none}
-  .codebox{font:12px/1.45 Consolas,monospace;background:#f8fafc;border:1px solid var(--line);border-radius:6px;padding:10px;max-height:220px;overflow:auto;white-space:pre;margin-top:8px}
-  .pill-ok{background:#e3f6ec!important;color:#085d38!important}
-  .pill-warn{background:#fff1d6!important;color:#8a5000!important}
-  .pill-bad{background:#fdecea!important;color:#b71c1c!important}
   tr.ticked td{background:#eefaf3}
   .tick-btn{width:28px;height:28px;border-radius:6px;border:1.5px solid #cbd3e1;background:#fff;color:#9aa5b4;font-size:15px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;padding:0;transition:.15s}
   .tick-btn:hover{border-color:var(--pri);color:var(--pri)}
@@ -100,13 +96,9 @@
   body.dark .msg{background:#0b2e1f;border-color:#166534;color:#dcfce7}
   body.dark .pocard{background:#1e293b;border-color:#334155}
   body.dark .pocard.sent{background:#0f2920;border-color:#15803d}
-  body.dark .codebox{background:#0f172a;border-color:#334155;color:#e2e8f0}
   body.dark .sub-bar{background:#0f172a;border-color:#334155}
   body.dark .req-card{border-color:#92400e;background:#291d0a}
   body.dark .pending-bar{border-color:#1e3a8a;background:#172554}
-  body.dark .pill-ok{background:#064e3b!important;color:#6ee7b7!important}
-  body.dark .pill-warn{background:#422006!important;color:#fcd34d!important}
-  body.dark .pill-bad{background:#451a1a!important;color:#fca5a5!important}
   body.dark #login{background:linear-gradient(135deg,#042f2e,#0f172a)}
   body.dark a{color:#60a5fa}
   body.dark .toast{background:#f1f5f9;color:#0f172a}
@@ -136,14 +128,6 @@
   <h2 style="font-size:17px">Send this order list?</h2><div id="confirmList"></div>
   <div class="row" style="margin-top:14px;justify-content:flex-end"><button class="b sec" onclick="staffCancel()">No, go back</button><button class="b" onclick="staffConfirm()">Yes, send</button></div>
 </div></div>
-<div id="drivePinBox" class="modal hide"><div class="card" style="width:min(340px,92vw);text-align:center;padding:22px;margin:0">
-  <div style="font-size:30px">🔒</div>
-  <h2 style="font-size:17px;margin-top:4px">Google Drive Passcode</h2>
-  <p class="mut small">Enter passcode to open Google Drive options</p>
-  <input id="drvPinIn" type="password" inputmode="numeric" autocomplete="off" placeholder="Passcode" style="width:100%;text-align:center;font-size:20px;letter-spacing:6px" onkeydown="if(event.key==='Enter')submitDrivePin()">
-  <div id="drvPinErr" style="color:var(--bad);min-height:20px" class="small"></div>
-  <div class="row" style="justify-content:center;margin-top:6px"><button class="b sec" onclick="cancelDrivePin()">Cancel</button><button class="b" onclick="submitDrivePin()">Unlock</button></div>
-</div></div>
 <div id="login">
   <button id="themeBtnLogin" class="b sec sm theme-login" onclick="toggleTheme()">🌙 Dark</button>
   <div class="card" style="width:min(390px,94vw);text-align:center;padding:24px;margin:0">
@@ -167,9 +151,6 @@
   <span class="small mgr-only" id="hdrStats"></span>
   <span class="sp"></span>
   <span id="who" class="small"></span>
-  <button id="drivePill" class="b sec sm admin-only" onclick="drivePillClick()" title="Google Drive auto-backup">☁ Drive: Setup</button>
-  <button id="driveOpenHdr" class="b sec sm admin-only" onclick="openDriveFolder()" title="Open Google Drive backup folder">📂 Drive ↗</button>
-  <button id="btnSyncPull" class="b sec sm hide" onclick="pullFromDrive(false)" title="Fetch latest data from cloud">🔄 Refresh</button>
   <button class="b sec sm admin-only" onclick="exportBackup()">⬇ Backup</button>
   <button class="b sec sm admin-only" onclick="document.getElementById('restoreFile').click()">⬆ Restore</button>
   <input type="file" id="restoreFile" class="hide" accept=".json" onchange="restoreBackup(this)">
@@ -342,53 +323,6 @@
 <!-- ===================== SETTINGS ===================== -->
 <section id="tab-settings" class="hide">
   <div class="card">
-    <div class="row" style="justify-content:space-between;margin-bottom:8px">
-      <h2 style="margin:0">☁ Google Drive Backup (Auto-Sync)</h2>
-      <div class="row">
-        <span id="drvBadge" class="tag sug">Not linked</span>
-        <button id="btnLockDrive" class="b sec sm hide" onclick="lockDrive()">🔒 Lock</button>
-      </div>
-    </div>
-    <div id="driveLocked" class="row sub-bar" style="justify-content:space-between;padding:12px">
-      <span class="small mut">🔒 Google Drive setup, sync keys, backup &amp; restore options are locked.</span>
-      <button class="b" onclick="requireDriveUnlock()">🔒 Unlock Drive Options</button>
-    </div>
-    <div id="driveBody" class="hide">
-    <div class="hint">Automatically backs up <b>everything</b> to your Google Drive: <b>Supplier details</b>, <b>Product mapping</b>, <b>Order placed history</b>, <b>Sent order history</b>, <b>Staff lists</b>, and <b>Settings</b> — saved as a full restore file, daily snapshots, and a readable Google Sheet.</div>
-    <details id="driveGuide" open style="margin-bottom:12px">
-      <summary><b>One-time 1-minute setup (free, connects directly to your Google Drive)</b></summary>
-      <ol class="small" style="margin:8px 0 8px 18px;line-height:1.7">
-        <li>Open <a href="https://script.google.com/home/start" target="_blank" rel="noopener"><b>script.google.com</b></a> (signed in to your Google Drive account) and click <b>New project</b>.</li>
-        <li>Click <b>📋 Copy Apps Script</b> below, delete any default text in <code>Code.gs</code>, and paste the copied code.</li>
-        <li>Click <b>Deploy → New deployment</b> → gear icon → <b>Web app</b>. Set <b>Execute as: Me</b> and <b>Who has access: Anyone</b>. Click <b>Deploy</b> and approve Google permissions.</li>
-        <li>Copy the <b>Web app URL</b> (<code>https://script.google.com/macros/s/…/exec</code>), paste it below, and click <b>Save &amp; Connect Drive</b>.</li>
-      </ol>
-      <div class="row">
-        <button class="b sec sm" onclick="copyAppsScript()">📋 Copy Apps Script</button>
-        <button class="b sec sm" onclick="downloadAppsScript()">⬇ Download Code.gs</button>
-        <button class="b sec sm" onclick="toggleScriptPreview()">👁 Show / Hide Script</button>
-      </div>
-      <pre id="driveScriptPreview" class="codebox hide"></pre>
-    </details>
-    <div class="grid2">
-      <label>Apps Script Web App URL<br><input id="drvUrl" placeholder="https://script.google.com/macros/s/.../exec" style="width:100%"></label>
-      <label>Google Drive Folder Name<br><input id="drvFolder" placeholder="Pharmacy PO Maker Backups" style="width:100%"></label>
-      <label>Sync Secret Key <span class="mut small">(matches script)</span><br><div class="row" style="gap:6px"><input id="drvSecret" style="flex:1"><button class="b sec sm" onclick="regenDriveSecret()">New key</button></div></label>
-      <label style="display:flex;align-items:center;gap:6px;padding-top:18px"><input type="checkbox" id="drvAuto" checked> <span>Auto-backup to Google Drive after every change</span></label>
-    </div>
-    <div class="row" style="margin-top:12px">
-      <button class="b" onclick="saveAndTestDrive()">Save &amp; Connect Drive</button>
-      <button class="b wa" onclick="syncToDrive(false)">☁ Backup to Drive Now</button>
-      <button class="b sec" onclick="restoreFromDrive()">⬇ Restore Latest from Drive</button>
-      <button class="b sec" onclick="copySharedLink()">🔗 Copy Shared Device Link</button>
-      <button class="b sec" onclick="openDriveFolder()">📂 Open My Drive ↗</button>
-      <button id="btnOpenSheet" class="b sec hide" onclick="openDriveSheet()">📊 Open Backup Sheet ↗</button>
-    </div>
-    <p class="small mut" style="margin:8px 0 0">Tip: Click <b>🔗 Copy Shared Device Link</b> and open it once on Store Manager &amp; Pharmacy 1/2/3 devices so they fetch all products, orders &amp; messages live automatically.</p>
-    <div id="drvStatus" class="small mut" style="margin-top:6px"></div>
-    </div>
-  </div>
-  <div class="card">
     <h2>Shop & message settings</h2>
     <div class="grid2">
       <label>Shop / pharmacy name<br><input id="setShop" style="width:100%"></label>
@@ -433,8 +367,6 @@ function toggleTheme(){
   applyTheme(dark);
 }
 applyTheme(localStorage.getItem(THEME_KEY)==='dark');
-const DEFAULT_DRIVE_FOLDER_ID='1sH22XUOf8zrt-yJrpS4RGjrILvJ_3OI2';
-const DEFAULT_DRIVE_URL='https://drive.google.com/drive/folders/1sH22XUOf8zrt-yJrpS4RGjrILvJ_3OI2';
 function sha256(str){
   const b=new TextEncoder().encode(str),l=b.length*8,w=[];
   for(let i=0;i<b.length;i++)w[i>>2]|=b[i]<<((3-i%4)*8);
@@ -537,10 +469,8 @@ function dedupeCatalog(s){
     });
   }
 }
-function randKey(){const c='abcdefghjkmnpqrstuvwxyz23456789';let r='';for(let i=0;i<16;i++)r+=c[Math.floor(Math.random()*c.length)];return r}
-function defaultDrive(){return{url:'',secret:randKey(),folder:'Pharmacy PO Maker Backups',auto:true,folderUrl:DEFAULT_DRIVE_URL,sheetUrl:'',lastSync:''}}
 let S=load();
-function blank(){return{settings:{unit:'Box',pick:'lowest',pins:Object.assign({},DEFAULT_PINS),shop:'INHAERO CLINIC PHARMACY',phone:'',cc:'91',footer:'Kindly confirm availability & rate. Thank you.',drive:defaultDrive()},stockists:[],products:[],draft:[],requests:[],staffDrafts:{},messages:[],history:[],seq:0,uid:1}}
+function blank(){return{settings:{unit:'Box',pick:'lowest',pins:Object.assign({},DEFAULT_PINS),shop:'INHAERO CLINIC PHARMACY',phone:'',cc:'91',footer:'Kindly confirm availability & rate. Thank you.'},stockists:[],products:[],draft:[],requests:[],staffDrafts:{},messages:[],history:[],seq:0,uid:1}}
 function load(){try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.settings)return migrate(s)}catch(e){}return blank()}
 function migrate(s){
   s.requests=s.requests||[];s.requests.forEach(q=>{q.status=q.status||'pending';if(q.by==='staff')q.by='pharmacy1'});
@@ -550,10 +480,10 @@ function migrate(s){
   const pins=Object.assign({},DEFAULT_PINS,s.settings.pins||{});
   if(!s.settings.pins&&s.settings.adminPin)pins.admin=s.settings.adminPin;
   s.settings.pins=pins;
-  const d=Object.assign(defaultDrive(),s.settings.drive||{});if(!d.secret)d.secret=randKey();if(!d.folder)d.folder='Pharmacy PO Maker Backups';if(!d.folderUrl||d.folderUrl.includes('/my-drive'))d.folderUrl=DEFAULT_DRIVE_URL;s.settings.drive=d;
+  delete s.settings.drive;
   dedupeCatalog(s);return s
 }
-function save(skipSync){localStorage.setItem(KEY,JSON.stringify(S));hdr();if(!skipSync&&typeof scheduleDriveSync==='function')scheduleDriveSync()}
+function save(){localStorage.setItem(KEY,JSON.stringify(S));hdr()}
 const uid=()=>S.uid++;
 const uniqId=()=>Date.now()*1000+Math.floor(Math.random()*1000);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -1328,501 +1258,8 @@ function renderHistory(){
 }
 function delPO(id){if(!confirm('Delete this record?'))return;S.history=S.history.filter(p=>p.id!==id);save();renderHistory()}
 
-/* ============================ GOOGLE DRIVE SYNC ============================ */
-const HOSTED_APP_URL='https://sanoopvaderi-byte.github.io/pharmacy-po-maker/';
-let driveTimer=null,driveState='idle',driveMsg='',driveBusy=false,lastDriveRev='',lastPullAt=0,pullBusy=false;
-function getDrive(){if(!S.settings.drive)S.settings.drive=defaultDrive();return S.settings.drive}
-function buildAppsScript(){
-  const d=getDrive();
-  const sec=JSON.stringify(($('drvSecret')?.value||d.secret).trim()||d.secret);
-  const fld=JSON.stringify(($('drvFolder')?.value||d.folder).trim()||'Pharmacy PO Maker Backups');
-  return [
-    '// Pharmacy PO Maker — Google Drive Live Cloud Sync & Auto-Backup Bridge',
-    '// Deploy as: Web app | Execute as: Me | Who has access: Anyone',
-    'const SECRET = ' + sec + ';',
-    'const DEFAULT_FOLDER_ID = ' + JSON.stringify(DEFAULT_DRIVE_FOLDER_ID) + ';',
-    'const DEFAULT_FOLDER = ' + fld + ';',
-    'const LATEST_FILE = "PO-Maker-Backup-LATEST.json";',
-    'const SHEET_NAME = "PO-Maker-Master-Records";',
-    '',
-    'function jsonOut(obj) {',
-    '  return ContentService.createTextOutput(JSON.stringify(obj)).setMimeType(ContentService.MimeType.JSON);',
-    '}',
-    'function doGet() {',
-    '  return ContentService.createTextOutput("Pharmacy PO Maker – Live Google Drive Sync is active.");',
-    '}',
-    'function getOrCreateFolder(parent, name) {',
-    '  const it = parent.getFoldersByName(name);',
-    '  return it.hasNext() ? it.next() : parent.createFolder(name);',
-    '}',
-    'function findFile(folder, name, mime) {',
-    '  const it = folder.getFilesByName(name);',
-    '  while (it.hasNext()) { const f = it.next(); if (!mime || f.getMimeType() === mime) return f; }',
-    '  return null;',
-    '}',
-    'function upsertTextFile(folder, name, content, mime) {',
-    '  const existing = findFile(folder, name, null);',
-    '  if (existing) { existing.setContent(content); return existing; }',
-    '  return folder.createFile(name, content, mime);',
-    '}',
-    'function readState(folder) {',
-    '  const f = findFile(folder, LATEST_FILE, null);',
-    '  if (!f) return { file: null, data: null };',
-    '  try { return { file: f, data: JSON.parse(f.getBlob().getDataAsString()) }; }',
-    '  catch (e) { return { file: f, data: null }; }',
-    '}',
-    'function writeSheetTab(ss, title, headers, rows) {',
-    '  let sh = ss.getSheetByName(title);',
-    '  if (!sh) sh = ss.insertSheet(title);',
-    '  sh.clearContents();',
-    '  const safe = v => typeof v === "number" ? v : (/^[=+\\-@]/.test(String(v == null ? "" : v)) ? "\'" + String(v) : String(v == null ? "" : v));',
-    '  const all = [headers].concat((rows || []).map(r => r.map(safe)));',
-    '  sh.getRange(1, 1, all.length, headers.length).setValues(all);',
-    '  sh.getRange(1, 1, 1, headers.length).setFontWeight("bold");',
-    '  sh.setFrozenRows(1);',
-    '}',
-    'function updateMasterSheet(folder, tables) {',
-    '  let file = findFile(folder, SHEET_NAME, MimeType.GOOGLE_SHEETS);',
-    '  let ss;',
-    '  if (file) { ss = SpreadsheetApp.openById(file.getId()); }',
-    '  else { ss = SpreadsheetApp.create(SHEET_NAME); file = DriveApp.getFileById(ss.getId()); file.moveTo(folder); }',
-    '  const hadDefault = ss.getSheetByName("Sheet1");',
-    '  writeSheetTab(ss, "Suppliers", ["Stockist Name","WhatsApp Number","Location","Products Mapped","Added Date"], tables.suppliers);',
-    '  writeSheetTab(ss, "Product Mapping", ["Product Name","Default Stockist","All Stockists","Default Unit"], tables.mapping);',
-    '  writeSheetTab(ss, "Order Placed History", ["PO No","Order Placed Date","Stockist","WhatsApp","Product","Qty","Unit","Status","Sent Date"], tables.ordersPlaced);',
-    '  writeSheetTab(ss, "Sent Order History", ["PO No","Sent Date","Order Placed Date","Stockist","WhatsApp","Product","Qty","Unit"], tables.ordersSent);',
-    '  writeSheetTab(ss, "Pharmacy Lists", ["Submitted Date","From","Product","Qty","Unit","Stockist","Status"], tables.staffLists);',
-    '  if (hadDefault && ss.getSheets().length > 1) { try { ss.deleteSheet(hadDefault); } catch (e) {} }',
-    '  return file.getUrl();',
-    '}',
-    'function mergeLists(existing, incoming, clearedChannel) {',
-    '  if (!existing) return incoming;',
-    '  const out = Object.assign({}, incoming);',
-    '  // Smart-merge pharmacy requests so concurrent counter submissions are never lost',
-    '  const reqMap = {};',
-    '  (existing.requests || []).forEach(r => { reqMap[String(r.id)] = r; });',
-    '  (incoming.requests || []).forEach(r => {',
-    '    const prev = reqMap[String(r.id)];',
-    '    if (prev && prev.status && prev.status !== "pending" && (!r.status || r.status === "pending")) reqMap[String(r.id)] = prev;',
-    '    else reqMap[String(r.id)] = r;',
-    '  });',
-    '  out.requests = Object.keys(reqMap).map(k => reqMap[k]).sort((a, b) => new Date(a.date) - new Date(b.date));',
-    '  // Smart-merge messages & read receipts',
-    '  const msgMap = {};',
-    '  (existing.messages || []).forEach(m => {',
-    '    if (clearedChannel && m.channel === clearedChannel) return;',
-    '    msgMap[String(m.id)] = m;',
-    '  });',
-    '  (incoming.messages || []).forEach(m => {',
-    '    const prev = msgMap[String(m.id)];',
-    '    if (prev) {',
-    '      const rb = Array.from(new Set((prev.readBy || []).concat(m.readBy || [])));',
-    '      msgMap[String(m.id)] = Object.assign({}, m, { readBy: rb });',
-    '    } else msgMap[String(m.id)] = m;',
-    '  });',
-    '  out.messages = Object.keys(msgMap).map(k => msgMap[k]).sort((a, b) => new Date(a.date) - new Date(b.date)).slice(-500);',
-    '  const sd = Object.assign({}, existing.staffDrafts || {});',
-    '  Object.keys(incoming.staffDrafts || {}).forEach(k => { if ((incoming.staffDrafts[k] || []).length || !sd[k]) sd[k] = incoming.staffDrafts[k]; });',
-    '  out.staffDrafts = sd;',
-    '  return out;',
-    '}',
-    'function doPost(e) {',
-    '  const lock = LockService.getScriptLock();',
-    '  let locked = false;',
-    '  try {',
-    '    const req = JSON.parse((e && e.postData && e.postData.contents) || "{}");',
-    '    if (req.secret !== SECRET) return jsonOut({ ok: false, error: "Invalid sync secret key" });',
-    '    const folderName = (req.folder || DEFAULT_FOLDER).trim() || DEFAULT_FOLDER;',
-    '    let folder = null;',
-    '    if (folderName === DEFAULT_FOLDER && DEFAULT_FOLDER_ID) { try { folder = DriveApp.getFolderById(DEFAULT_FOLDER_ID); } catch (e) {} }',
-    '    if (!folder) folder = getOrCreateFolder(DriveApp.getRootFolder(), folderName);',
-    '',
-    '    if (req.action === "ping") {',
-    '      const st = readState(folder);',
-    '      const sheet = findFile(folder, SHEET_NAME, MimeType.GOOGLE_SHEETS);',
-    '      return jsonOut({ ok: true, folderUrl: folder.getUrl(), sheetUrl: sheet ? sheet.getUrl() : "", hasBackup: !!st.data, rev: (st.data && st.data._rev) || "", lastUpdated: st.file ? st.file.getLastUpdated().toISOString() : "" });',
-    '    }',
-    '    if (req.action === "pull" || req.action === "restore") {',
-    '      const st = readState(folder);',
-    '      const sheet = findFile(folder, SHEET_NAME, MimeType.GOOGLE_SHEETS);',
-    '      if (!st.data) {',
-    '        if (req.action === "restore") return jsonOut({ ok: false, error: "No backup file found in Drive folder yet." });',
-    '        return jsonOut({ ok: true, empty: true, rev: "", folderUrl: folder.getUrl(), sheetUrl: sheet ? sheet.getUrl() : "" });',
-    '      }',
-    '      const curRev = String(st.data._rev || (st.file ? st.file.getLastUpdated().getTime() : ""));',
-    '      if (req.action === "pull" && req.sinceRev && req.sinceRev === curRev) {',
-    '        return jsonOut({ ok: true, unchanged: true, rev: curRev });',
-    '      }',
-    '      return jsonOut({ ok: true, rev: curRev, folderUrl: folder.getUrl(), sheetUrl: sheet ? sheet.getUrl() : "", lastUpdated: st.file ? st.file.getLastUpdated().toISOString() : "", data: st.data });',
-    '    }',
-    '',
-    '    lock.waitLock(15000); locked = true;',
-    '    const cur = readState(folder);',
-    '    const nowRev = String(Date.now());',
-    '',
-    '    if (req.action === "submit_request") {',
-    '      const base = cur.data || req.fallback || { settings: {}, stockists: [], products: [], draft: [], requests: [], staffDrafts: {}, messages: [], history: [], seq: 0, uid: 1 };',
-    '      base.requests = base.requests || [];',
-    '      if (req.request && !base.requests.some(x => String(x.id) === String(req.request.id))) base.requests.push(req.request);',
-    '      if (req.draftKey && req.draftRows !== undefined) { base.staffDrafts = base.staffDrafts || {}; base.staffDrafts[req.draftKey] = req.draftRows || []; }',
-    '      base._rev = nowRev;',
-    '      upsertTextFile(folder, LATEST_FILE, JSON.stringify(base, null, 2), MimeType.PLAIN_TEXT);',
-    '      return jsonOut({ ok: true, rev: nowRev, data: base, syncedAt: new Date().toISOString() });',
-    '    }',
-    '    if (req.action === "save_draft") {',
-    '      const base = cur.data || req.fallback || { settings: {}, stockists: [], products: [], draft: [], requests: [], staffDrafts: {}, messages: [], history: [], seq: 0, uid: 1 };',
-    '      if (req.draftKey) { base.staffDrafts = base.staffDrafts || {}; base.staffDrafts[req.draftKey] = req.draftRows || []; base._rev = nowRev; upsertTextFile(folder, LATEST_FILE, JSON.stringify(base, null, 2), MimeType.PLAIN_TEXT); }',
-    '      return jsonOut({ ok: true, rev: String(base._rev || nowRev), syncedAt: new Date().toISOString() });',
-    '    }',
-    '    if (req.action === "send_message") {',
-    '      const base = cur.data || req.fallback || { settings: {}, stockists: [], products: [], draft: [], requests: [], staffDrafts: {}, messages: [], history: [], seq: 0, uid: 1 };',
-    '      base.messages = base.messages || [];',
-    '      (req.messages || []).forEach(m => { if (!base.messages.some(x => String(x.id) === String(m.id))) base.messages.push(m); });',
-    '      base.messages = base.messages.slice(-500);',
-    '      base._rev = nowRev;',
-    '      upsertTextFile(folder, LATEST_FILE, JSON.stringify(base, null, 2), MimeType.PLAIN_TEXT);',
-    '      return jsonOut({ ok: true, rev: nowRev, data: base, syncedAt: new Date().toISOString() });',
-    '    }',
-    '    if (req.action === "mark_read") {',
-    '      if (!cur.data) return jsonOut({ ok: true, rev: "" });',
-    '      let changed = false;',
-    '      (cur.data.messages || []).forEach(m => {',
-    '        if (m.channel === req.channel && m.from !== req.role) {',
-    '          m.readBy = m.readBy || [];',
-    '          if (m.readBy.indexOf(req.role) === -1) { m.readBy.push(req.role); changed = true; }',
-    '        }',
-    '      });',
-    '      if (changed) {',
-    '        cur.data._rev = nowRev;',
-    '        upsertTextFile(folder, LATEST_FILE, JSON.stringify(cur.data, null, 2), MimeType.PLAIN_TEXT);',
-    '      }',
-    '      return jsonOut({ ok: true, rev: String(cur.data._rev || nowRev) });',
-    '    }',
-    '    if (req.action === "backup") {',
-    '      const merged = mergeLists(cur.data, req.backup, req.clearedChannel || "");',
-    '      merged._rev = nowRev;',
-    '      const jsonStr = JSON.stringify(merged, null, 2);',
-    '      upsertTextFile(folder, LATEST_FILE, jsonStr, MimeType.PLAIN_TEXT);',
-    '      const snaps = getOrCreateFolder(folder, "Daily Snapshots");',
-    '      const dayTag = req.dayTag || Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");',
-    '      upsertTextFile(snaps, "PO-Maker-Backup-" + dayTag + ".json", jsonStr, MimeType.PLAIN_TEXT);',
-    '      const sheetUrl = req.tables ? updateMasterSheet(folder, req.tables) : "";',
-    '      return jsonOut({ ok: true, rev: nowRev, data: merged, folderUrl: folder.getUrl(), sheetUrl: sheetUrl, syncedAt: new Date().toISOString() });',
-    '    }',
-    '    return jsonOut({ ok: false, error: "Unknown action" });',
-    '  } catch (err) {',
-    '    return jsonOut({ ok: false, error: String(err) });',
-    '  } finally {',
-    '    if (locked) try { lock.releaseLock(); } catch (e) {}',
-    '  }',
-    '}'
-  ].join('\n');
-}
-function copyAppsScript(){
-  if(!driveUnlocked)return requireDriveUnlock(copyAppsScript);
-  const code=buildAppsScript();
-  if($('driveScriptPreview')&&!$('driveScriptPreview').classList.contains('hide'))$('driveScriptPreview').textContent=code;
-  navigator.clipboard.writeText(code).then(()=>toast('Apps Script copied ✓')).catch(()=>{toggleScriptPreview(true);toast('Copy from the script box below')});
-}
-function downloadAppsScript(){if(!driveUnlocked)return requireDriveUnlock(downloadAppsScript);dl('GoogleDriveSync-Code.gs',buildAppsScript(),'text/plain')}
-function toggleScriptPreview(forceOpen){
-  if(!driveUnlocked)return requireDriveUnlock(()=>toggleScriptPreview(forceOpen));
-  const el=$('driveScriptPreview');if(!el)return;
-  const show=forceOpen===true?true:el.classList.contains('hide');
-  el.classList.toggle('hide',!show);
-  if(show)el.textContent=buildAppsScript();
-}
-function regenDriveSecret(){
-  if(!driveUnlocked)return requireDriveUnlock(regenDriveSecret);
-  if(!confirm('Generate a new sync secret key? You will need to update SECRET in your Apps Script deployment.'))return;
-  const k=randKey();getDrive().secret=k;$('drvSecret').value=k;save(true);
-  if($('driveScriptPreview')&&!$('driveScriptPreview').classList.contains('hide'))$('driveScriptPreview').textContent=buildAppsScript();
-  toast('New key generated');
-}
-function buildDriveTables(){
-  const suppliers=S.stockists.map(s=>[s.name,phoneOf(s)?'+'+phoneOf(s):'',s.location||'',S.products.filter(p=>p.offers.some(o=>o.id===s.id)).length,s.createdAt?new Date(s.createdAt).toLocaleString():'']);
-  const mapping=S.products.map(p=>[p.name,stk(p.stockistId)?.name||'',p.offers.filter(o=>stk(o.id)).map(o=>stk(o.id).name).join(', '),p.unit||defUnit()]);
-  const ordersPlaced=[],sentList=[];
-  S.history.forEach(po=>{
-    const pDate=new Date(po.date).toLocaleString();
-    po.groups.forEach(g=>{
-      const s=stk(g.stockistId),ph=(s&&phoneOf(s))||g.phone||'';
-      const sDate=g.sentAt?new Date(g.sentAt).toLocaleString():(g.sent?pDate:'');
-      g.items.forEach(it=>{
-        ordersPlaced.push([po.no,pDate,g.name,ph?'+'+ph:'',it.name,it.qty,it.unit||'',g.sent?'Sent':'Not sent',sDate]);
-        if(g.sent)sentList.push({ts:new Date(g.sentAt||po.date).getTime(),row:[po.no,sDate,pDate,g.name,ph?'+'+ph:'',it.name,it.qty,it.unit||'']});
-      });
-    });
-  });
-  sentList.sort((a,b)=>b.ts-a.ts);
-  const lab={pending:'Waiting for store',imported:'Taken for order',dismissed:'Not ordered'};
-  const staffLists=[];
-  [...S.requests].reverse().forEach(q=>{
-    const dStr=new Date(q.date).toLocaleString(),st=lab[q.status||'pending']||'Waiting for store',frm=roleLabel(q.by);
-    q.items.forEach(it=>staffLists.push([dStr,frm,it.name,it.qty,it.unit||'',it.stockist||'',st]));
-  });
-  return{suppliers,mapping,ordersPlaced,ordersSent:sentList.map(x=>x.row),staffLists};
-}
-async function driveCall(payload){
-  const d=getDrive();
-  if(!d.url)throw new Error('Google Drive Web App URL is not set yet');
-  const res=await fetch(d.url,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(Object.assign({secret:d.secret,folder:d.folder},payload)),redirect:'follow'});
-  const txt=await res.text();
-  let j;try{j=JSON.parse(txt)}catch(e){throw new Error('Drive endpoint did not return JSON — check "Who has access: Anyone" in Apps Script Deploy settings.')}
-  if(!j.ok)throw new Error(j.error||'Drive sync failed');
-  return j;
-}
-let driveUnlocked=false,driveAfterUnlock=null;
-function requireDriveUnlock(nextFn){
-  if(ROLE!=='admin')return;
-  if(driveUnlocked){if(nextFn)nextFn();return}
-  driveAfterUnlock=nextFn||null;
-  $('drvPinIn').value='';$('drvPinErr').textContent='';
-  $('drivePinBox').classList.remove('hide');
-  setTimeout(()=>$('drvPinIn').focus(),20);
-}
-function cancelDrivePin(){driveAfterUnlock=null;$('drivePinBox').classList.add('hide')}
-function submitDrivePin(){
-  if(pinMatch('secure',$('drvPinIn').value.trim(),SECURE_PIN_HASH)){
-    driveUnlocked=true;$('drvPinIn').value='';$('drivePinBox').classList.add('hide');
-    renderDriveUI();toast('Drive options unlocked ✓');
-    const fn=driveAfterUnlock;driveAfterUnlock=null;if(fn)fn();
-  }else{
-    $('drvPinErr').textContent='Wrong passcode';$('drvPinIn').value='';$('drvPinIn').focus();
-  }
-}
-function lockDrive(){driveUnlocked=false;renderDriveUI();toast('Drive options locked')}
-function renderDriveUI(){
-  const d=getDrive(),pill=$('drivePill'),badge=$('drvBadge'),st=$('drvStatus'),sh=$('btnOpenSheet'),pb=$('btnSyncPull');
-  if($('driveLocked'))$('driveLocked').classList.toggle('hide',driveUnlocked);
-  if($('driveBody'))$('driveBody').classList.toggle('hide',!driveUnlocked);
-  if($('btnLockDrive'))$('btnLockDrive').classList.toggle('hide',!driveUnlocked);
-  if(pb)pb.classList.toggle('hide',!d.url);
-  if(pill){
-    pill.classList.remove('pill-ok','pill-warn','pill-bad');
-    if(!d.url){pill.textContent='☁ Drive: Setup'}
-    else if(driveState==='syncing'){pill.textContent='☁ Syncing…';pill.classList.add('pill-warn')}
-    else if(driveState==='pending'){pill.textContent='☁ Drive: Pending…';pill.classList.add('pill-warn')}
-    else if(driveState==='error'){pill.textContent='☁ Drive: Retry';pill.classList.add('pill-bad')}
-    else if(d.lastSync){pill.textContent='☁ Drive synced';pill.classList.add('pill-ok');pill.title='Last synced: '+new Date(d.lastSync).toLocaleString()+' (click to sync now)'}
-    else{pill.textContent='☁ Drive linked';pill.classList.add('pill-ok')}
-  }
-  if(badge){
-    badge.className='tag '+(!d.url?'sug':driveState==='error'?'new':'ok');
-    badge.textContent=!d.url?'Not linked':driveState==='syncing'?'Syncing…':driveState==='error'?'Sync error':d.lastSync?'Connected · synced':'Connected';
-  }
-  if(sh)sh.classList.toggle('hide',!d.sheetUrl);
-  if(st){
-    if(driveMsg)st.textContent=driveMsg;
-    else if(d.lastSync)st.textContent='Last backed up to Google Drive: '+new Date(d.lastSync).toLocaleString();
-    else if(d.url)st.textContent='Drive URL saved. Click "Backup to Drive Now" to run your first backup.';
-    else st.textContent='Not connected yet. Follow the 1-minute setup above to auto-backup & sync across devices.';
-  }
-}
-function copySharedLink(){
-  if(!driveUnlocked)return requireDriveUnlock(copySharedLink);
-  readDriveInputs();
-  const d=getDrive();
-  if(!d.url)return toast('Save your Apps Script Web App URL first');
-  const base=(location.protocol==='http:'||location.protocol==='https:')?(location.origin+location.pathname):HOSTED_APP_URL;
-  const link=`${base}#sync=${encodeURIComponent(d.url)}&k=${encodeURIComponent(d.secret)}&f=${encodeURIComponent(d.folder||'Pharmacy PO Maker Backups')}`;
-  navigator.clipboard.writeText(link).then(()=>toast('Shared device link copied ✓ — open it once on any PC/phone')).catch(()=>prompt('Copy this shared device link:',link));
-}
-function initSyncFromHash(){
-  const h=location.hash||'';
-  if(!h.includes('sync='))return false;
-  const q=new URLSearchParams(h.slice(1));
-  const u=(q.get('sync')||'').trim(),k=(q.get('k')||'').trim(),f=(q.get('f')||'').trim();
-  if(!u||!k)return false;
-  const d=getDrive();
-  d.url=u;d.secret=k;if(f)d.folder=f;d.auto=true;
-  lastDriveRev='';lastPullAt=0;
-  save(true);renderDriveUI();
-  try{history.replaceState(null,'',location.pathname+location.search)}catch(e){}
-  return true;
-}
-function applyCloudData(raw,rev,folderUrl,sheetUrl){
-  if(!raw||!raw.settings)return;
-  const curDrive=Object.assign({},getDrive());
-  const localDraft=S.draft&&S.draft.length?S.draft:null;
-  const localStaffDrafts=S.staffDrafts||{};
-  S=migrate(raw);
-  // Keep this browser's live sync config & any local unsent typing
-  S.settings.drive=Object.assign(S.settings.drive||{},curDrive);
-  if(folderUrl)S.settings.drive.folderUrl=folderUrl;
-  if(sheetUrl)S.settings.drive.sheetUrl=sheetUrl;
-  if(localDraft&&(!S.draft||!S.draft.length))S.draft=localDraft;
-  // Preserve ticked drafts on this device for active pharmacy
-  if(ROLE&&ROLES[ROLE]&&ROLES[ROLE].kind==='pharmacy'&&localStaffDrafts[ROLE]&&localStaffDrafts[ROLE].length){
-    S.staffDrafts[ROLE]=localStaffDrafts[ROLE];
-  }
-  if(rev)lastDriveRev=String(rev);
-  S.settings.drive.lastSync=S.settings.drive.lastSync||new Date().toISOString();
-  save(true);
-  if($('prodList'))$('prodList').innerHTML=S.products.map(p=>`<option value="${esc(p.name)}">`).join('');
-  hdr();renderDriveUI();
-  if(!ROLE)return;
-  const act=document.activeElement;
-  const inEdit=act&&(act.tagName==='INPUT'||act.tagName==='TEXTAREA'||act.tagName==='SELECT');
-  if(!$('tab-po').classList.contains('hide')){renderRequests();if(!inEdit)renderDraft()}
-  if(!$('tab-msg').classList.contains('hide'))renderMessages(true);
-  if(!$('tab-staff').classList.contains('hide')){renderStaffHistory();updateMsgBadges()}
-  if(!$('tab-history').classList.contains('hide'))renderHistory();
-  if(!$('tab-stockists').classList.contains('hide')&&!inEdit)renderStockists();
-  if(!$('tab-map').classList.contains('hide')&&!inEdit&&!openRowPickId)renderMap();
-}
-async function pullFromDrive(silent){
-  const d=getDrive();
-  if(!d.url||pullBusy||driveBusy)return;
-  const now=Date.now();
-  if(silent&&now-lastPullAt<3500)return;
-  lastPullAt=now;pullBusy=true;
-  const pb=$('btnSyncPull');if(pb&&!silent)pb.textContent='🔄 Syncing…';
-  try{
-    const r=await driveCall({action:'pull',sinceRev:silent?lastDriveRev:''});
-    if(r.folderUrl)d.folderUrl=r.folderUrl;
-    if(r.sheetUrl)d.sheetUrl=r.sheetUrl;
-    if(r.unchanged){if(!silent)toast('Already up to date ✓');return}
-    if(r.empty){if(!silent)toast('Connected — no cloud data yet');return}
-    if(r.data){
-      applyCloudData(r.data,r.rev,r.folderUrl,r.sheetUrl);
-      driveState='ok';renderDriveUI();
-      if(!silent)toast('Latest data fetched ✓');
-    }
-  }catch(e){
-    if(!silent)toast('Sync failed: '+e.message);
-  }finally{
-    pullBusy=false;
-    if(pb)pb.textContent='🔄 Refresh';
-  }
-}
-async function drivePushRequest(reqObj){
-  const d=getDrive();if(!d.url||!d.auto)return;
-  try{
-    const r=await driveCall({action:'submit_request',request:reqObj,fallback:S});
-    if(r.rev)lastDriveRev=String(r.rev);
-    if(r.data)applyCloudData(r.data,r.rev);
-    d.lastSync=r.syncedAt||new Date().toISOString();driveState='ok';save(true);renderDriveUI();
-  }catch(e){scheduleDriveSync()}
-}
-async function drivePushMessages(msgList){
-  const d=getDrive();if(!d.url||!d.auto)return;
-  try{
-    const r=await driveCall({action:'send_message',messages:msgList,fallback:S});
-    if(r.rev)lastDriveRev=String(r.rev);
-    if(r.data)applyCloudData(r.data,r.rev);
-    d.lastSync=r.syncedAt||new Date().toISOString();driveState='ok';save(true);renderDriveUI();
-  }catch(e){scheduleDriveSync()}
-}
-async function driveMarkRead(channel,role){
-  const d=getDrive();if(!d.url||!d.auto)return;
-  try{const r=await driveCall({action:'mark_read',channel,role});if(r.rev)lastDriveRev=String(r.rev)}catch(e){}
-}
-function drivePillClick(){
-  if(ROLE!=='admin')return;
-  requireDriveUnlock(()=>{
-    const d=getDrive();
-    if(!d.url){showTab('settings');return}
-    syncToDrive(false);
-  });
-}
-function openDriveFolder(){if(ROLE!=='admin')return;requireDriveUnlock(()=>window.open(getDrive().folderUrl||DEFAULT_DRIVE_URL,'_blank'))}
-function openDriveSheet(){if(ROLE!=='admin')return;requireDriveUnlock(()=>{const u=getDrive().sheetUrl;if(u)window.open(u,'_blank');else toast('Run a backup first to create the Google Sheet')})}
-function readDriveInputs(){
-  const d=getDrive();
-  d.url=$('drvUrl').value.trim();
-  d.folder=$('drvFolder').value.trim()||'Pharmacy PO Maker Backups';
-  d.secret=$('drvSecret').value.trim()||d.secret||randKey();
-  d.auto=$('drvAuto').checked;
-  save(true);
-}
-async function saveAndTestDrive(){
-  if(!driveUnlocked)return requireDriveUnlock(saveAndTestDrive);
-  readDriveInputs();
-  const d=getDrive();
-  if(!d.url)return toast('Paste your Google Apps Script Web App URL first');
-  driveState='syncing';driveMsg='Testing connection to Google Drive…';renderDriveUI();
-  try{
-    const r=await driveCall({action:'ping'});
-    if(r.folderUrl)d.folderUrl=r.folderUrl;
-    if(r.sheetUrl)d.sheetUrl=r.sheetUrl;
-    driveState='ok';
-    driveMsg='Connected to Google Drive ✓'+(r.hasBackup&&r.lastUpdated?' (existing backup from '+new Date(r.lastUpdated).toLocaleString()+')':' (folder ready)');
-    if($('driveGuide'))$('driveGuide').open=false;
-    save(true);renderDriveUI();toast('Google Drive connected ✓');
-    const localEmpty=!S.stockists.length&&!S.products.length&&!S.history.length&&!S.requests.length;
-    if(localEmpty&&r.hasBackup){await pullFromDrive(false)}
-    else if(!localEmpty){await syncToDrive(false)}
-  }catch(e){
-    driveState='error';driveMsg='Connection failed: '+e.message;renderDriveUI();alert('Could not connect to Google Drive:\n'+e.message);
-  }
-}
-function scheduleDriveSync(){
-  const d=getDrive();
-  if(!d.url||!d.auto)return;
-  driveState='pending';renderDriveUI();
-  clearTimeout(driveTimer);
-  driveTimer=setTimeout(()=>syncToDrive(true),2500);
-}
-async function syncToDrive(isAuto,clearedChannel){
-  if(!isAuto&&!driveUnlocked)return requireDriveUnlock(()=>syncToDrive(false));
-  if(!isAuto&&$('drvUrl')&&!$('tab-settings').classList.contains('hide'))readDriveInputs();
-  const d=getDrive();
-  if(!d.url){if(!isAuto)toast('Connect Google Drive in Settings first');return}
-  if(driveBusy)return;
-  const empty=!S.stockists.length&&!S.products.length&&!S.history.length&&!S.requests.length&&!(S.messages&&S.messages.length);
-  if(empty&&isAuto)return;
-  if(empty&&!isAuto&&!confirm('Your local data is empty. Overwrite your Google Drive backup with empty data?'))return;
-  clearTimeout(driveTimer);driveTimer=null;
-  driveBusy=true;driveState='syncing';driveMsg='Syncing everything with Google Drive…';renderDriveUI();
-  try{
-    const dayTag=today().split('/').reverse().join('-');
-    const r=await driveCall({action:'backup',dayTag,backup:S,tables:buildDriveTables(),clearedChannel:clearedChannel||''});
-    d.lastSync=r.syncedAt||new Date().toISOString();
-    if(r.folderUrl)d.folderUrl=r.folderUrl;
-    if(r.sheetUrl)d.sheetUrl=r.sheetUrl;
-    if(r.rev)lastDriveRev=String(r.rev);
-    if(r.data)applyCloudData(r.data,r.rev,r.folderUrl,r.sheetUrl);
-    driveState='ok';driveMsg='Synced with Google Drive at '+new Date(d.lastSync).toLocaleString()+' ✓';
-    save(true);renderDriveUI();
-    if(!isAuto)toast('Synced with Google Drive ✓');
-  }catch(e){
-    driveState='error';driveMsg='Sync failed: '+e.message;renderDriveUI();
-    if(!isAuto)toast('Drive sync failed: '+e.message);
-  }finally{driveBusy=false}
-}
-async function restoreFromDrive(){
-  if(!driveUnlocked)return requireDriveUnlock(restoreFromDrive);
-  if($('drvUrl'))readDriveInputs();
-  const d=getDrive();
-  if(!d.url)return toast('Paste your Google Apps Script Web App URL first');
-  driveState='syncing';driveMsg='Fetching latest backup from Google Drive…';renderDriveUI();
-  try{
-    const r=await driveCall({action:'restore'});
-    const s=r.data;
-    if(!s||!s.settings)throw new Error('Backup file in Drive is invalid');
-    const summary=`${(s.stockists||[]).length} stockists, ${(s.products||[]).length} products, ${(s.history||[]).length} placed orders, ${(s.requests||[]).length} staff lists`;
-    if(!confirm(`Restore backup from Google Drive?\nLast updated: ${r.lastUpdated?new Date(r.lastUpdated).toLocaleString():'unknown'}\nContains: ${summary}\n\nThis will replace data in this browser.`)){
-      driveState='ok';driveMsg='Restore cancelled.';renderDriveUI();return;
-    }
-    const curDrive=Object.assign({},d);
-    S=migrate(s);
-    if(!S.settings.drive.url)S.settings.drive=curDrive;
-    else{S.settings.drive.url=curDrive.url;S.settings.drive.secret=curDrive.secret;S.settings.drive.folder=curDrive.folder}
-    if(r.folderUrl)S.settings.drive.folderUrl=r.folderUrl;
-    driveState='ok';driveMsg='Restored from Google Drive ✓';
-    save(true);init();toast('Restored from Google Drive ✓');
-  }catch(e){
-    driveState='error';driveMsg='Restore failed: '+e.message;renderDriveUI();alert('Could not restore from Google Drive:\n'+e.message);
-  }
-}
-
 /* ============================ SETTINGS / DATA ============================ */
 function renderSettings(){
-  const d=getDrive();
-  $('drvUrl').value=d.url||'';$('drvFolder').value=d.folder||'Pharmacy PO Maker Backups';$('drvSecret').value=d.secret||'';$('drvAuto').checked=d.auto!==false;
-  if($('driveGuide'))$('driveGuide').open=!d.url;
-  renderDriveUI();
   ['setPinAdmin','setPinMgr','setPinP1','setPinP2','setPinP3'].forEach(id=>$(id).value='');
   $('setUnit').innerHTML=unitOpts(defUnit());$('setShop').value=S.settings.shop;$('setPhone').value=S.settings.phone;$('setCC').value=S.settings.cc;$('setFooter').value=S.settings.footer
 }
@@ -1837,8 +1274,8 @@ function saveSettings(){
   save();toast('Saved')}
 function dl(name,text,type){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click()}
 function exportBackup(){if(ROLE!=='admin')return;dl(`po-maker-backup-${new Date().toISOString().slice(0,10)}.json`,JSON.stringify(S),'application/json')}
-function restoreBackup(inp){if(ROLE!=='admin')return;const f=inp.files[0];if(!f)return;f.text().then(t=>{try{const s=JSON.parse(t);if(!s.settings)throw 0;const curDrive=Object.assign({},getDrive());S=migrate(s);if(!S.settings.drive.url&&curDrive.url)S.settings.drive=curDrive;save();init();toast('Restored')}catch(e){alert('Invalid backup file')}});inp.value=''}
-function resetAll(){if(ROLE!=='admin')return;const c=prompt('Enter the erase passcode to continue:');if(c===null)return;if(!pinMatch('secure',c.trim(),SECURE_PIN_HASH))return alert('Wrong passcode – nothing was erased.');if(confirm('Erase ALL stockists, products, mapping and history?')){const curDrive=Object.assign({},getDrive());S=blank();S.settings.drive=curDrive;save(true);init();toast('Local data erased (Drive backup preserved)')}}
+function restoreBackup(inp){if(ROLE!=='admin')return;const f=inp.files[0];if(!f)return;f.text().then(t=>{try{const s=JSON.parse(t);if(!s.settings)throw 0;S=migrate(s);save();init();toast('Restored')}catch(e){alert('Invalid backup file')}});inp.value=''}
+function resetAll(){if(ROLE!=='admin')return;const c=prompt('Enter the erase passcode to continue:');if(c===null)return;if(!pinMatch('secure',c.trim(),SECURE_PIN_HASH))return alert('Wrong passcode – nothing was erased.');if(confirm('Erase ALL stockists, products, mapping and history?')){S=blank();save();init();toast('All data erased')}}
 function loadSample(){
   if(ROLE!=='admin')return;
   if(!confirm('Add demo stockists and products?'))return;
@@ -1983,8 +1420,7 @@ function staffConfirm(){
   liveDrafts[k]=curDraft().filter(r=>!pendingSentIds.has(r.id));
   while(liveDrafts[k].length<5)liveDrafts[k].push(blankRow());
   pendingItems=null;pendingSentIds=null;$('confirmBox').classList.add('hide');
-  syncSavedDrafts();save(true);renderStaff();toast('Order list sent ✓ ('+n+' item'+(n>1?'s':'')+')');
-  drivePushRequest(reqObj);
+  syncSavedDrafts();save();renderStaff();toast('Order list sent ✓ ('+n+' item'+(n>1?'s':'')+')');
 }
 const DAY_MS=24*60*60*1000;
 const isWithin24h=q=>Date.now()-new Date(q.date).getTime()<DAY_MS;
@@ -2031,7 +1467,7 @@ function updateMsgBadges(){
   }
 }
 function setMsgChannel(ch){curMsgCh=ch;renderMessages()}
-function renderMessages(fromCloud){
+function renderMessages(){
   if(!ROLE||!ROLES[ROLE])return;
   const isPh=ROLES[ROLE].kind==='pharmacy';
   const ch=isPh?ROLE:curMsgCh;
@@ -2044,7 +1480,7 @@ function renderMessages(fromCloud){
         if(!m.readBy.includes(ROLE)){m.readBy.push(ROLE);dirty=true}
       }
     });
-    if(dirty){save(true);driveMarkRead(ch,ROLE)}
+    if(dirty)save();
   }
   updateMsgBadges();
   if($('msgTitle'))$('msgTitle').textContent=isPh?`💬 ${roleLabel(ROLE)} ↔ Store Manager`:'💬 Store Manager ↔ Pharmacies';
@@ -2089,8 +1525,7 @@ function sendChatMsg(){
   newMsgs.forEach(m=>S.messages.push(m));
   if(S.messages.length>500)S.messages=S.messages.slice(-500);
   inp.value='';
-  save(true);renderMessages(true);inp.focus();
-  drivePushMessages(newMsgs);
+  save();renderMessages();inp.focus();
   if(!isPh&&curMsgCh==='all')toast('Sent to Pharmacy 1, 2 & 3 ✓');
 }
 function clearChannelMsgs(){
@@ -2099,8 +1534,7 @@ function clearChannelMsgs(){
   if(!confirm(`Clear all messages with ${roleLabel(curMsgCh)}?`))return;
   const cleared=curMsgCh;
   S.messages=(S.messages||[]).filter(m=>m.channel!==cleared);
-  save(true);renderMessages(true);toast('Chat cleared');
-  syncToDrive(true,cleared);
+  save();renderMessages();toast('Chat cleared');
 }
 
 /* ---------------- login / roles ---------------- */
@@ -2112,7 +1546,6 @@ function showTab(t){
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));
   document.querySelectorAll('main>section').forEach(s=>s.classList.toggle('hide',s.id!=='tab-'+t));
   if(t==='po')renderDraft();if(t==='staff')renderStaff();if(t==='stockists')renderStockists();if(t==='map')renderMap();if(t==='history')renderHistory();if(t==='msg')renderMessages();if(t==='settings')renderSettings();
-  pullFromDrive(true);
 }
 $('nav').addEventListener('click',e=>{const t=e.target.dataset.t;if(!t)return;showTab(t)});
 function pickRole(r){
@@ -2126,26 +1559,19 @@ function doLogin(){
   if(pinMatch(loginRole,v,pins[loginRole])){ROLE=loginRole;sessionStorage.setItem('po_role',ROLE);$('lgPin').value='';applyRole()}
   else{$('lgErr').textContent='Wrong passcode';$('lgPin').value='';$('lgPin').focus()}
 }
-function logout(){ROLE=null;liveDrafts={};driveUnlocked=false;driveAfterUnlock=null;sessionStorage.removeItem('po_role');applyRole()}
-function applyRole(skipPull){
+function logout(){ROLE=null;liveDrafts={};sessionStorage.removeItem('po_role');applyRole()}
+function applyRole(){
   const info=ROLE&&ROLES[ROLE];
-  if(!info||ROLE!=='admin'){driveUnlocked=false;driveAfterUnlock=null}
   document.body.classList.remove('role-admin','role-manager','role-pharmacy');
   if(info)document.body.classList.add('role-'+info.kind);
-  $('login').classList.toggle('hide',!!info);$('confirmBox').classList.add('hide');$('drivePinBox').classList.add('hide');
+  $('login').classList.toggle('hide',!!info);$('confirmBox').classList.add('hide');
   $('who').textContent=info?('👤 '+info.label):'';
-  if(info){init();showTab(info.home);if(!skipPull)pullFromDrive(true)}else{pickRole('admin')}
+  if(info){init();showTab(info.home)}else{pickRole('admin')}
 }
-function init(){liveDrafts={};purgeOldRequests();hdr();renderDraft();renderStockists();renderMap();renderSettings();renderStaff();renderDriveUI();updateMsgBadges();$('results').innerHTML='';$('results').dataset.poid=''}
-window.addEventListener('hashchange',()=>{if(initSyncFromHash())pullFromDrive(false)});
-window.addEventListener('storage',e=>{if(e.key!==KEY)return;S=load();purgeOldRequests();hdr();renderDriveUI();if(ROLE==='admin'||ROLE==='manager')renderRequests();if(ROLE){renderStaffHistory();if(!$('tab-msg').classList.contains('hide'))renderMessages(true)}});
-window.addEventListener('online',()=>{if(driveState==='error'||driveState==='pending')syncToDrive(true);else pullFromDrive(true)});
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'&&driveTimer)syncToDrive(true);else if(document.visibilityState==='visible')pullFromDrive(true)});
-const syncedViaLink=initSyncFromHash();
-applyRole(true);
-if(getDrive().url)pullFromDrive(!syncedViaLink);
+function init(){liveDrafts={};purgeOldRequests();hdr();renderDraft();renderStockists();renderMap();renderSettings();renderStaff();updateMsgBadges();$('results').innerHTML='';$('results').dataset.poid=''}
+window.addEventListener('storage',e=>{if(e.key!==KEY)return;S=load();purgeOldRequests();hdr();if(ROLE==='admin'||ROLE==='manager')renderRequests();if(ROLE){renderStaffHistory();if(!$('tab-msg').classList.contains('hide'))renderMessages()}});
+applyRole();
 setInterval(()=>{if(!ROLE)return;purgeOldRequests();renderStaffHistory()},60*1000);
-setInterval(()=>{if(document.visibilityState==='visible'&&getDrive().url)pullFromDrive(true)},10*1000);
 </script>
 </body>
 </html>
