@@ -1,0 +1,38 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: po_maker
+    // Document ID: live_data
+    // Fields:
+    //   - updatedAt: number (required) - Timestamp in milliseconds of latest state sync
+    //   - state: map (required) - Application state object (stockists, products, draft,
+    //     requests, staffDrafts, messages, history, settings, seq, uid, etc.)
+    //
+    // ===============================================================
+
+    // Helper functions & Domain Validators
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function isValidLiveData() {
+      return hasRequiredFields(['updatedAt', 'state'])
+             && request.resource.data.keys().hasAll(['updatedAt', 'state'])
+             && request.resource.data.updatedAt is number
+             && request.resource.data.state is map;
+    }
+
+    match /po_maker/{docId} {
+      // Allow read & write for pharmacy app clients with schema validation
+      allow read: if true;
+      allow write: if docId == 'live_data'
+                   && isValidLiveData();
+    }
+  }
+}
