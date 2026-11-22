@@ -153,6 +153,27 @@
   body.dark .chat-msg{background:#1e293b;border-color:#334155}
   body.dark .chat-msg.me{background:#064e3b;border-color:#15803d;color:#dcfce7}
   details summary{cursor:pointer}
+  #notifStack{position:fixed;top:64px;right:16px;width:min(380px,calc(100vw - 24px));z-index:9999;display:flex;flex-direction:column;gap:10px;pointer-events:none}
+  .notif-card{pointer-events:auto;background:var(--card);color:var(--ink);border:1px solid var(--line);border-left:5px solid var(--pri);border-radius:12px;padding:12px 14px;box-shadow:0 10px 30px rgba(15,23,42,.22);animation:notifIn .25s ease-out}
+  .notif-card.order{border-left-color:#f59e0b;background:#fffbeb}
+  .notif-card.msg{border-left-color:#10b981;background:#f0fdf4}
+  .notif-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px}
+  .notif-title{font-weight:700;font-size:14px;display:flex;align-items:center;gap:6px}
+  .notif-close{background:transparent;border:none;color:var(--mut);font-size:15px;cursor:pointer;padding:2px 6px;border-radius:6px;line-height:1}
+  .notif-close:hover{background:rgba(0,0,0,.08);color:var(--ink)}
+  .notif-meta{font-size:11.5px;color:var(--mut);margin-bottom:6px}
+  .notif-body{font-size:13px;line-height:1.45;margin-bottom:10px;word-break:break-word}
+  .notif-items{margin:4px 0 0;padding-left:16px;font-size:12.5px}
+  .notif-items li{margin:2px 0}
+  .notif-actions{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  #notifBtn.need-perm{background:#fef3c7;color:#92400e;border:1px solid #f59e0b}
+  #notifBtn.muted{opacity:.75}
+  body.dark .notif-card{background:#1e293b;border-color:#334155;color:#f1f5f9;box-shadow:0 12px 32px rgba(0,0,0,.5)}
+  body.dark .notif-card.order{background:#2d210a;border-color:#92400e;border-left-color:#f59e0b}
+  body.dark .notif-card.msg{background:#0b2e1f;border-color:#166534;border-left-color:#34d399}
+  body.dark .notif-close:hover{background:rgba(255,255,255,.12);color:#fff}
+  body.dark #notifBtn.need-perm{background:#78350f;color:#fde68a;border-color:#f59e0b}
+  @keyframes notifIn{from{opacity:0;transform:translateX(24px) scale(.97)}to{opacity:1;transform:translateX(0) scale(1)}}
 </style>
 </head>
 <body>
@@ -184,6 +205,7 @@
   <span id="cloudSyncStatus" class="tag" style="margin-left:8px;font-size:11px;background:#e3f6ec;color:#0a7a3e;cursor:pointer;padding:2px 8px;border-radius:12px;display:inline-flex;align-items:center;gap:4px" onclick="forceCloudSync()" title="Real-Time Cloud Sync: Click to force sync">🟢 Live Cloud Synced</span>
   <span class="sp"></span>
   <span id="who" class="small"></span>
+  <button id="notifBtn" class="b sec sm" onclick="toggleNotifications()" title="Enable desktop popup notifications & sound alerts">🔔 Alerts: ON</button>
   <button class="b sec sm admin-only" onclick="exportBackup()">⬇ Backup</button>
   <button class="b sec sm admin-only" onclick="document.getElementById('restoreFile').click()">⬆ Restore</button>
   <input type="file" id="restoreFile" class="hide" accept=".json" onchange="restoreBackup(this)">
@@ -412,8 +434,346 @@
 </section>
 </main>
 <div class="toast" id="toast"></div>
+<div id="notifStack" aria-live="assertive"></div>
 
 <script>
+/* ============================ LIVE NOTIFICATIONS & ALERTS ============================ */
+const NOTIF_SOUND_KEY = 'po_notif_sound';
+let notifSoundOn = localStorage.getItem(NOTIF_SOUND_KEY) !== 'off';
+let seenReqIds = new Set();
+let seenMsgIds = new Set();
+let localCreatedIds = new Set();
+let notifBaselineReady = false;
+let hasCloudInitialSync = false;
+let notifSeq = 0;
+let alertAudioCtx = null;
+let titleFlashTimer = null;
+const BASE_DOC_TITLE = document.title;
+
+function unlockAudio(){
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if(!AC) return;
+    if(!alertAudioCtx) alertAudioCtx = new AC();
+    if(alertAudioCtx.state === 'suspended') alertAudioCtx.resume();
+  } catch(e){}
+}
+document.addEventListener('click', unlockAudio, {passive:true});
+document.addEventListener('keydown', unlockAudio, {passive:true});
+
+function playAlertSound(kind){
+  if(!notifSoundOn) return;
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if(!AC) return;
+    if(!alertAudioCtx) alertAudioCtx = new AC();
+    if(alertAudioCtx.state === 'suspended') alertAudioCtx.resume();
+    const ctx = alertAudioCtx;
+    const now = ctx.currentTime;
+    const notes = kind === 'order'
+      ? [[523.25, 0, 0.14], [659.25, 0.14, 0.14], [783.99, 0.28, 0.22], [659.25, 0.54, 0.12], [783.99, 0.66, 0.24]]
+      : [[659.25, 0, 0.12], [880.00, 0.13, 0.20]];
+    notes.forEach(([freq, offset, dur]) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, now + offset);
+      gain.gain.setValueAtTime(0.0001, now + offset);
+      gain.gain.exponentialRampToValueAtTime(0.18, now + offset + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + offset + dur);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now + offset);
+      osc.stop(now + offset + dur + 0.02);
+    });
+  } catch(e){}
+}
+
+function updateNotifBtn(){
+  const b = document.getElementById('notifBtn');
+  if(!b) return;
+  const hasDesk = ('Notification' in window);
+  const perm = hasDesk ? Notification.permission : 'unsupported';
+  b.classList.remove('need-perm', 'muted');
+  if(hasDesk && perm === 'default'){
+    b.classList.add('need-perm');
+    b.textContent = '🔔 Enable Alerts';
+    b.title = 'Click to activate browser desktop popup alerts & sound';
+  } else if(!notifSoundOn){
+    b.classList.add('muted');
+    b.textContent = '🔕 Alerts: Muted';
+    b.title = 'Sound muted (popups still active). Click to unmute sound alerts';
+  } else {
+    b.textContent = '🔔 Alerts: ON';
+    b.title = perm === 'granted'
+      ? 'Desktop popup & sound alerts active. Click to mute sound'
+      : 'In-app popup & sound alerts active. Click to mute sound';
+  }
+}
+
+function toggleNotifications(){
+  unlockAudio();
+  if('Notification' in window && Notification.permission === 'default'){
+    Notification.requestPermission().then(res => {
+      notifSoundOn = true;
+      localStorage.setItem(NOTIF_SOUND_KEY, 'on');
+      updateNotifBtn();
+      playAlertSound('msg');
+      if(res === 'granted'){
+        toast('🔔 Desktop popup & sound alerts enabled ✓');
+        showDesktopNotif('Pharmacy PO Maker Alerts Active', 'You will now receive popup alerts for new orders & messages.');
+      } else {
+        toast('🔔 In-app popup & sound alerts active ✓');
+      }
+    }).catch(() => updateNotifBtn());
+    return;
+  }
+  notifSoundOn = !notifSoundOn;
+  localStorage.setItem(NOTIF_SOUND_KEY, notifSoundOn ? 'on' : 'off');
+  updateNotifBtn();
+  if(notifSoundOn){
+    playAlertSound('msg');
+    toast('🔔 Sound & popup alerts ON');
+  } else {
+    toast('🔕 Alert sound muted (popup cards still active)');
+  }
+}
+
+function showDesktopNotif(title, body, onClick){
+  try {
+    if(!('Notification' in window) || Notification.permission !== 'granted') return;
+    const n = new Notification(title, { body: body || '' });
+    n.onclick = () => {
+      try { window.focus(); } catch(e){}
+      if(typeof onClick === 'function') onClick();
+      n.close();
+    };
+  } catch(e){}
+}
+
+function flashPageTitle(alertTitle){
+  if(!document.hidden) return;
+  clearInterval(titleFlashTimer);
+  let flip = true;
+  document.title = alertTitle;
+  titleFlashTimer = setInterval(() => {
+    document.title = flip ? BASE_DOC_TITLE : alertTitle;
+    flip = !flip;
+  }, 1200);
+}
+function stopTitleFlash(){
+  if(titleFlashTimer){
+    clearInterval(titleFlashTimer);
+    titleFlashTimer = null;
+  }
+  document.title = BASE_DOC_TITLE;
+}
+document.addEventListener('visibilitychange', () => { if(!document.hidden) stopTitleFlash(); });
+window.addEventListener('focus', stopTitleFlash);
+
+function dismissNotif(id){
+  const el = document.getElementById('notif-' + id);
+  if(el) el.remove();
+}
+function clearNotifPopups(){
+  const stack = document.getElementById('notifStack');
+  if(stack) stack.innerHTML = '';
+  stopTitleFlash();
+}
+
+function showNotifPopup(opts){
+  const stack = document.getElementById('notifStack');
+  if(!stack) return;
+  const id = ++notifSeq;
+  const card = document.createElement('div');
+  card.id = 'notif-' + id;
+  card.className = 'notif-card ' + (opts.kind || 'msg');
+  card.innerHTML = `
+    <div class="notif-head">
+      <span class="notif-title">${opts.title || '🔔 Notification'}</span>
+      <button type="button" class="notif-close" aria-label="Close notification" onclick="dismissNotif(${id})">✕</button>
+    </div>
+    ${opts.meta ? `<div class="notif-meta">${esc(opts.meta)}</div>` : ''}
+    <div class="notif-body">${opts.bodyHtml || ''}</div>
+    <div class="notif-actions">
+      ${opts.actionLabel ? `<button type="button" class="b sm" id="notif-act-${id}">${opts.actionLabel}</button>` : '<span></span>'}
+      <button type="button" class="b sec sm" onclick="dismissNotif(${id})">Dismiss</button>
+    </div>`;
+  stack.prepend(card);
+  while(stack.children.length > 5) stack.lastElementChild.remove();
+  if(opts.actionLabel && typeof opts.onAction === 'function'){
+    const actBtn = document.getElementById('notif-act-' + id);
+    if(actBtn) actBtn.onclick = () => { dismissNotif(id); opts.onAction(); };
+  }
+  if(opts.autoCloseMs){
+    setTimeout(() => dismissNotif(id), opts.autoCloseMs);
+  }
+}
+
+function openOrderAlertTarget(){
+  if(typeof showTab === 'function') showTab('po');
+  if(typeof renderRequests === 'function') renderRequests();
+  const rb = document.getElementById('reqBox');
+  if(rb) rb.scrollIntoView({behavior:'smooth'});
+}
+
+function openMsgAlertTarget(channel){
+  if(typeof ROLE !== 'undefined' && ROLE && ROLES[ROLE] && ROLES[ROLE].kind !== 'pharmacy' && channel){
+    curMsgCh = channel;
+  }
+  if(typeof showTab === 'function') showTab('msg');
+  const inp = document.getElementById('msgInput');
+  if(inp) inp.focus();
+}
+
+function isMsgForRole(m, role){
+  if(!role || !ROLES[role]) return false;
+  if(m.from === role) return false;
+  if((m.readBy || []).includes(role)) return false;
+  const isPh = ROLES[role].kind === 'pharmacy';
+  if(isPh) return m.channel === role;
+  return true;
+}
+
+function notifyNewOrder(q){
+  const fromLbl = roleLabel(q.by);
+  const items = q.items || [];
+  const preview = items.slice(0, 4).map(it => `<li><b>${esc(it.name)}</b> × ${esc(it.qty)} ${esc(it.unit || '')}</li>`).join('');
+  const more = items.length > 4 ? `<li><i>+${items.length - 4} more item(s)…</i></li>` : '';
+  const plainSummary = items.slice(0, 3).map(it => `${it.name} (${it.qty} ${it.unit || ''})`).join(', ') + (items.length > 3 ? ` +${items.length - 3} more` : '');
+  showNotifPopup({
+    kind: 'order',
+    title: `🔔 New Order — ${esc(fromLbl)}`,
+    meta: `${items.length} item${items.length === 1 ? '' : 's'} placed • ${new Date(q.date).toLocaleTimeString()}`,
+    bodyHtml: `<ul class="notif-items">${preview}${more}</ul>`,
+    actionLabel: '📋 Open Order ➜',
+    onAction: openOrderAlertTarget,
+    autoCloseMs: 45000
+  });
+  showDesktopNotif(`🔔 New Order from ${fromLbl}`, `${items.length} item(s): ${plainSummary}`, openOrderAlertTarget);
+  flashPageTitle(`🔔 New Order (${fromLbl}) — Pharmacy PO Maker`);
+}
+
+function notifyNewMessage(m){
+  const fromLbl = roleLabel(m.from);
+  const ch = m.channel;
+  const txt = String(m.text || '');
+  const shortTxt = txt.length > 140 ? txt.slice(0, 140) + '…' : txt;
+  showNotifPopup({
+    kind: 'msg',
+    title: `💬 New Message — ${esc(fromLbl)}`,
+    meta: `${new Date(m.date).toLocaleTimeString()}`,
+    bodyHtml: `<div>${esc(shortTxt)}</div>`,
+    actionLabel: '💬 Open & Reply ➜',
+    onAction: () => openMsgAlertTarget(ch),
+    autoCloseMs: 18000
+  });
+  showDesktopNotif(`💬 Message from ${fromLbl}`, shortTxt, () => openMsgAlertTarget(ch));
+  flashPageTitle(`💬 New Message (${fromLbl}) — Pharmacy PO Maker`);
+}
+
+function resetNotifBaseline(showSummary){
+  seenReqIds = new Set((S.requests || []).map(q => q.id));
+  seenMsgIds = new Set((S.messages || []).map(m => m.id));
+  notifBaselineReady = true;
+  if(!showSummary || typeof ROLE === 'undefined' || !ROLE || !ROLES[ROLE]) return;
+  const isMgr = (ROLE === 'manager' || ROLE === 'admin');
+  if(isMgr){
+    const pend = pendingReqs();
+    if(pend.length){
+      const byNames = [...new Set(pend.map(q => roleLabel(q.by)))].join(', ');
+      showNotifPopup({
+        kind: 'order',
+        title: `🔔 ${pend.length} Pending Pharmacy Order${pend.length > 1 ? 's' : ''}`,
+        meta: `From: ${byNames}`,
+        bodyHtml: `You have <b>${pend.length}</b> pharmacy order list${pend.length > 1 ? 's' : ''} waiting to be processed.`,
+        actionLabel: '📋 View Orders ➜',
+        onAction: openOrderAlertTarget,
+        autoCloseMs: 15000
+      });
+    }
+  }
+  const unreadMsgs = (S.messages || []).filter(m => isMsgForRole(m, ROLE));
+  if(unreadMsgs.length){
+    const lastM = unreadMsgs[unreadMsgs.length - 1];
+    const fromLbl = roleLabel(lastM.from);
+    showNotifPopup({
+      kind: 'msg',
+      title: `💬 ${unreadMsgs.length} Unread Message${unreadMsgs.length > 1 ? 's' : ''}`,
+      meta: `Latest from ${fromLbl}`,
+      bodyHtml: `<div>${esc(String(lastM.text || '').slice(0, 120))}</div>`,
+      actionLabel: '💬 Open Messages ➜',
+      onAction: () => openMsgAlertTarget(lastM.channel),
+      autoCloseMs: 12000
+    });
+  }
+}
+
+function checkIncomingAlerts(isInitialCloudSync){
+  if(typeof ROLE === 'undefined' || !ROLE || !ROLES[ROLE]) return;
+  if(!notifBaselineReady){
+    resetNotifBaseline(true);
+    return;
+  }
+  const isMgr = (ROLE === 'manager' || ROLE === 'admin');
+  const newReqs = (S.requests || []).filter(q =>
+    !seenReqIds.has(q.id) &&
+    !localCreatedIds.has(q.id) &&
+    (q.status || 'pending') === 'pending' &&
+    normBy(q.by) !== ROLE
+  );
+  (S.requests || []).forEach(q => seenReqIds.add(q.id));
+
+  const newMsgs = (S.messages || []).filter(m =>
+    !seenMsgIds.has(m.id) &&
+    !localCreatedIds.has(m.id) &&
+    isMsgForRole(m, ROLE)
+  );
+  (S.messages || []).forEach(m => seenMsgIds.add(m.id));
+
+  let playedSound = false;
+  if(isMgr && newReqs.length){
+    playAlertSound('order');
+    playedSound = true;
+    if(newReqs.length <= 3){
+      newReqs.forEach(q => notifyNewOrder(q));
+    } else {
+      const byNames = [...new Set(newReqs.map(q => roleLabel(q.by)))].join(', ');
+      showNotifPopup({
+        kind: 'order',
+        title: `🔔 ${newReqs.length} New Pharmacy Orders!`,
+        meta: `From: ${byNames}`,
+        bodyHtml: `<b>${newReqs.length}</b> new order lists arrived from pharmacies.`,
+        actionLabel: '📋 Open Orders ➜',
+        onAction: openOrderAlertTarget,
+        autoCloseMs: 45000
+      });
+      showDesktopNotif(`🔔 ${newReqs.length} New Pharmacy Orders`, `From: ${byNames}`, openOrderAlertTarget);
+      flashPageTitle(`🔔 ${newReqs.length} New Orders — Pharmacy PO Maker`);
+    }
+  }
+
+  if(newMsgs.length){
+    if(!playedSound) playAlertSound('msg');
+    if(newMsgs.length <= 3){
+      newMsgs.forEach(m => notifyNewMessage(m));
+    } else {
+      const lastM = newMsgs[newMsgs.length - 1];
+      showNotifPopup({
+        kind: 'msg',
+        title: `💬 ${newMsgs.length} New Messages`,
+        meta: `Latest from ${roleLabel(lastM.from)}`,
+        bodyHtml: `<div>${esc(String(lastM.text || '').slice(0, 120))}</div>`,
+        actionLabel: '💬 Open Messages ➜',
+        onAction: () => openMsgAlertTarget(lastM.channel),
+        autoCloseMs: 18000
+      });
+      showDesktopNotif(`💬 ${newMsgs.length} New Messages`, `${roleLabel(lastM.from)}: ${String(lastM.text || '').slice(0, 100)}`, () => openMsgAlertTarget(lastM.channel));
+      flashPageTitle(`💬 ${newMsgs.length} New Messages — Pharmacy PO Maker`);
+    }
+  }
+}
+
 /* ============================ CLOUD SYNC (FIREBASE FIRESTORE) ============================ */
 const firebaseConfig = {
   projectId: "pharmacy-po-maker",
@@ -529,6 +889,7 @@ function initFirebase(){
           return;
         }
         if(!doc.exists){
+          hasCloudInitialSync = true;
           if(typeof S !== 'undefined' && S && ((S.stockists && S.stockists.length) || (S.products && S.products.length) || (S.draft && S.draft.length))){
             console.log('Initial cloud seed with local data...');
             pushToCloud(true);
@@ -544,6 +905,8 @@ function initFirebase(){
         const remoteTime = remote.updatedAt || 0;
         const localTime = (typeof S !== 'undefined' && S.updatedAt) ? S.updatedAt : 0;
         const localIsEmpty = typeof S === 'undefined' || !S || ((!S.stockists || S.stockists.length === 0) && (!S.products || S.products.length === 0));
+        const firstCloud = !hasCloudInitialSync;
+        hasCloudInitialSync = true;
 
         if(remoteTime > localTime || (localIsEmpty && (remote.state.stockists?.length || remote.state.products?.length))){
           console.log('Applying real-time cloud data from remote...');
@@ -551,6 +914,7 @@ function initFirebase(){
           S.updatedAt = remoteTime;
           localStorage.setItem(KEY, JSON.stringify(S));
           if(typeof liveDrafts !== 'undefined') liveDrafts = {};
+          if(typeof checkIncomingAlerts === 'function') checkIncomingAlerts(firstCloud);
           renderActiveView();
           updateSyncBadge('synced', '🟢 Live Cloud Synced');
         } else if(localTime > remoteTime && !localIsEmpty){
@@ -702,11 +1066,11 @@ function migrate(s){
   delete s.settings.drive;
   dedupeCatalog(s);return s
 }
-function save(){
+function save(immediate){
   S.updatedAt=Date.now();
   localStorage.setItem(KEY,JSON.stringify(S));
   hdr();
-  if(typeof pushToCloud==='function')pushToCloud();
+  if(typeof pushToCloud==='function')pushToCloud(!!immediate);
 }
 const uid=()=>S.uid++;
 const uniqId=()=>Date.now()*1000+Math.floor(Math.random()*1000);
@@ -2031,11 +2395,12 @@ function staffConfirm(){
   if(!pendingItems)return;
   const reqObj={id:uniqId(),date:new Date().toISOString(),by:ROLE||'pharmacy1',status:'pending',items:pendingItems};
   S.requests.push(reqObj);
+  localCreatedIds.add(reqObj.id);seenReqIds.add(reqObj.id);
   const n=pendingItems.length,k=draftKey();
   liveDrafts[k]=curDraft().filter(r=>!pendingSentIds.has(r.id));
   while(liveDrafts[k].length<5)liveDrafts[k].push(blankRow());
   pendingItems=null;pendingSentIds=null;$('confirmBox').classList.add('hide');
-  syncSavedDrafts();save();renderStaff();toast('Order list sent ✓ ('+n+' item'+(n>1?'s':'')+')');
+  syncSavedDrafts();save(true);renderStaff();toast('Order list sent ✓ ('+n+' item'+(n>1?'s':'')+')');
 }
 const DAY_MS=24*60*60*1000;
 const isWithin24h=q=>Date.now()-new Date(q.date).getTime()<DAY_MS;
@@ -2137,10 +2502,10 @@ function sendChatMsg(){
     const targets=curMsgCh==='all'?PHARM_CHS:[curMsgCh];
     targets.forEach((ch,idx)=>newMsgs.push({id:uniqId()+idx,channel:ch,from:ROLE,text:txt,date:now,readBy:['manager','admin']}));
   }
-  newMsgs.forEach(m=>S.messages.push(m));
+  newMsgs.forEach(m=>{S.messages.push(m);localCreatedIds.add(m.id);seenMsgIds.add(m.id)});
   if(S.messages.length>500)S.messages=S.messages.slice(-500);
   inp.value='';
-  save();renderMessages();inp.focus();
+  save(true);renderMessages();inp.focus();
   if(!isPh&&curMsgCh==='all')toast('Sent to Pharmacy 1, 2 & 3 ✓');
 }
 function clearChannelMsgs(){
@@ -2169,12 +2534,13 @@ function pickRole(r){
   $('lgErr').textContent='';$('lgPin').focus();
 }
 function doLogin(){
+  unlockAudio();
   const v=$('lgPin').value.trim();
   const pins=Object.assign({},DEFAULT_PINS,S.settings.pins||{});
   if(pinMatch(loginRole,v,pins[loginRole])){ROLE=loginRole;sessionStorage.setItem('po_role',ROLE);$('lgPin').value='';applyRole()}
   else{$('lgErr').textContent='Wrong passcode';$('lgPin').value='';$('lgPin').focus()}
 }
-function logout(){ROLE=null;liveDrafts={};sessionStorage.removeItem('po_role');applyRole()}
+function logout(){ROLE=null;liveDrafts={};clearNotifPopups();notifBaselineReady=false;sessionStorage.removeItem('po_role');applyRole()}
 function applyRole(){
   const info=ROLE&&ROLES[ROLE];
   document.body.classList.remove('role-admin','role-manager','role-pharmacy');
@@ -2183,8 +2549,15 @@ function applyRole(){
   $('who').textContent=info?('👤 '+info.label):'';
   if(info){init();showTab(info.home)}else{pickRole('admin')}
 }
-function init(){if(typeof initFirebase==='function')initFirebase();liveDrafts={};purgeOldRequests();hdr();renderDraft();renderStockists();renderMap();renderSettings();renderStaff();updateMsgBadges();$('results').innerHTML='';$('results').dataset.poid=''}
-window.addEventListener('storage',e=>{if(e.key!==KEY)return;S=load();purgeOldRequests();hdr();if(ROLE==='admin'||ROLE==='manager')renderRequests();if(ROLE){renderStaffHistory();if(!$('tab-msg').classList.contains('hide'))renderMessages()}});
+function init(){if(typeof initFirebase==='function')initFirebase();liveDrafts={};purgeOldRequests();hdr();renderDraft();renderStockists();renderMap();renderSettings();renderStaff();updateMsgBadges();$('results').innerHTML='';$('results').dataset.poid='';clearNotifPopups();resetNotifBaseline(true);updateNotifBtn()}
+window.addEventListener('storage',e=>{
+  if(e.key!==KEY)return;
+  S=load();
+  if(typeof checkIncomingAlerts==='function')checkIncomingAlerts(false);
+  purgeOldRequests();hdr();
+  if(ROLE==='admin'||ROLE==='manager')renderRequests();
+  if(ROLE){renderStaffHistory();if(!$('tab-msg').classList.contains('hide'))renderMessages()}
+});
 applyRole();
 initFirebase();
 setInterval(()=>{if(!ROLE)return;purgeOldRequests();renderStaffHistory()},60*1000);
