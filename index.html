@@ -108,11 +108,17 @@
   .stk-chip{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:16px;border:1px solid #cbd3e1;background:#fff;color:var(--ink);cursor:pointer;font-size:12.5px;user-select:none;transition:.12s}
   .stk-chip:hover{border-color:var(--pri)}
   .stk-chip.on{background:#e3f6ec;border-color:var(--pri);color:#085d38;font-weight:600}
+  .stk-chip.mapped-chip{border-color:#86efac;background:#f0fdf4}
   .stk-chip input{margin:0;accent-color:var(--pri);cursor:pointer}
+  .unmap-btn{background:#fee2e2;color:#b91c1c;border:1px solid #fca5a5;padding:1px 7px;font-size:11px;font-weight:600;border-radius:10px;cursor:pointer;line-height:16px;display:inline-flex;align-items:center;transition:.15s}
+  .unmap-btn:hover{background:#dc2626;color:#fff;border-color:#b91c1c}
   .row-pick{margin-top:6px;padding:8px;border-radius:8px;border:1px solid var(--line);background:#f8fafc}
   body.dark .stk-chip{background:#0f172a;border-color:#475569;color:#e2e8f0}
   body.dark .stk-chip:hover{border-color:#34d399}
   body.dark .stk-chip.on{background:#064e3b;border-color:#10b981;color:#6ee7b7}
+  body.dark .stk-chip.mapped-chip{border-color:#059669;background:#064e3b;color:#dcfce7}
+  body.dark .unmap-btn{background:#450a0a;color:#fca5a5;border-color:#7f1d1d}
+  body.dark .unmap-btn:hover{background:#dc2626;color:#fff}
   body.dark .row-pick{background:#0f172a;border-color:#334155}
   .chat-box{min-height:240px;max-height:420px;overflow:auto;display:flex;flex-direction:column;gap:8px;padding:12px;border:1px solid var(--line);border-radius:10px;background:#f8fafc}
   .chat-msg{max-width:82%;padding:8px 12px;border-radius:12px;border:1px solid var(--line);background:#fff;align-self:flex-start}
@@ -260,12 +266,12 @@
     <h2>Add / map a product to stockists</h2>
     <div class="hint">Type or choose a product name, then tick <b>one or multiple stockists</b> below at the same time and click <b>+ Add / Map</b>. Extra/missing spaces or CAPITAL/small letters (e.g. <code>Dolo 650</code>, <code>dolo650</code>) are matched automatically as one product.</div>
     <div class="row">
-      <input id="mpName" list="prodList" placeholder="Product name (e.g. Dolo 650)" style="flex:1;min-width:200px" oninput="previewMapMatch()" onkeydown="if(event.key==='Enter')addSingleMap()">
+      <input id="mpName" list="prodList" placeholder="Product name (e.g. Dolo 650)" style="flex:1;min-width:200px" oninput="previewMapMatch()" onchange="previewMapMatch()" onkeydown="if(event.key==='Enter')addSingleMap()">
       <input id="mpStkFilter" placeholder="Filter stockists…" style="width:170px" oninput="renderMpStkChips()">
       <button id="mpAddBtn" class="b" onclick="addSingleMap()">+ Add / Map</button>
       <button class="b sec sm" onclick="clearMpSel()">Clear</button>
     </div>
-    <div id="mpMatch" class="small mut" style="margin-top:6px;min-height:18px"></div>
+    <div id="mpMatch" style="margin-top:6px;min-height:18px"></div>
     <div id="mpStkList" class="stk-pick"></div>
   </div>
   <div class="card">
@@ -886,7 +892,11 @@ function renderMpStkChips(){
   if(!S.stockists.length){host.innerHTML='<span class="mut small">Register stockists first in the Stockists tab.</span>';updateMpBtn();return}
   host.innerHTML=list.length?list.map(s=>{
     const on=mpSel.has(s.id),mapped=exIds.has(s.id);
-    return `<label class="stk-chip ${on?'on':''}"><input type="checkbox" ${on?'checked':''} onchange="toggleMpStk(${s.id},this.checked)"><span>${esc(s.name)}${mapped?' <span class="mut small">(mapped)</span>':''}</span></label>`;
+    return `<label class="stk-chip ${on?'on':''} ${mapped?'mapped-chip':''}">
+      <input type="checkbox" ${on?'checked':''} onchange="toggleMpStk(${s.id},this.checked)">
+      <span>${esc(s.name)}</span>
+      ${mapped?`<span class="tag ok" style="padding:0 5px;font-size:10px;line-height:16px;border-radius:6px">mapped</span><button type="button" class="unmap-btn" onclick="event.preventDefault();event.stopPropagation();unmapProductStockist(${ex.id},${s.id})" title="Click to unmap ${esc(s.name)} from ${esc(ex.name)}">✕ Unmap</button>`:''}
+    </label>`;
   }).join(''):'<span class="mut small">No matching stockists.</span>';
   updateMpBtn();
 }
@@ -901,14 +911,67 @@ function previewMapMatch(){
   if(!v){el.innerHTML='';renderMpStkChips();return}
   const ex=S.products.find(x=>canon(x.name)===canon(v));
   if(ex){
-    const sups=ex.offers.filter(o=>stk(o.id)).map(o=>stk(o.id).name);
-    el.innerHTML=`<span class="tag ok">Same product found</span> Will merge into <b>${esc(ex.name)}</b>`+(sups.length?` (current suppliers: ${esc(sups.join(', '))})`:'');
+    const sups=ex.offers.filter(o=>stk(o.id)).map(o=>stk(o.id));
+    const supsHtml=sups.map(s=>`
+      <span class="tag ok" style="padding:3px 8px;font-size:12px;margin:2px;display:inline-flex;align-items:center;gap:6px;border-radius:12px;background:#e3f6ec;color:#085d38;border:1px solid #a7f3d0">
+        <span>${esc(s.name)}</span>
+        <button type="button" class="unmap-btn" onclick="unmapProductStockist(${ex.id},${s.id})" title="Unmap ${esc(s.name)} from ${esc(ex.name)}">✕ Unmap</button>
+      </span>`).join('');
+    el.innerHTML=`
+      <div style="margin-top:6px;padding:8px 10px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+          <span><span class="tag ok">Product found: <b>${esc(ex.name)}</b></span> ${sups.length?`<span class="small" style="color:#166534;font-weight:600;margin-left:4px">Currently mapped suppliers (${sups.length}):</span>`:'<span class="mut small" style="margin-left:6px">(No suppliers mapped yet)</span>'}</span>
+          ${sups.length>1?`<button type="button" class="b red sm" style="padding:1px 8px;font-size:11px" onclick="unmapAllStockists(${ex.id})">✕ Unmap all</button>`:''}
+        </div>
+        ${sups.length?`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px">${supsHtml}</div>`:''}
+      </div>`;
   }else{
     const f=findProduct(v);
     if(f.exact||f.suggest){const m=f.exact||f.suggest;el.innerHTML=`<span class="tag sug">Similar product</span> “${esc(m.name)}” already exists — check spelling if it is the same product.`}
-    else el.innerHTML='<span class="mut">New product will be created — tick one or more stockists below</span>';
+    else el.innerHTML='<span class="mut small">New product will be created — tick one or more stockists below</span>';
   }
   renderMpStkChips();
+}
+
+function unmapProductStockist(pid,sid){
+  const p=S.products.find(x=>x.id===pid);if(!p)return;
+  const s=stk(sid);
+  const sName=s?s.name:'Stockist';
+  p.offers=(p.offers||[]).filter(o=>o.id!==sid);
+  if(p.stockistId===sid){
+    const nextStk=p.offers.find(o=>stk(o.id));
+    p.stockistId=nextStk?nextStk.id:null;
+    p.pinned=false;
+  }
+  mpSel.delete(sid);
+  save();
+  renderMap();
+  previewMapMatch();
+  renderMpStkChips();
+  renderStockists();
+  renderDraft();
+  toast(`Unmapped "${sName}" from ${p.name} ✓`);
+}
+function unmapAllStockists(pid){
+  const p=S.products.find(x=>x.id===pid);if(!p)return;
+  if(!confirm(`Unmap all suppliers from "${p.name}"?`))return;
+  p.offers=[];
+  p.stockistId=null;
+  p.pinned=false;
+  mpSel.clear();
+  save();
+  renderMap();
+  previewMapMatch();
+  renderMpStkChips();
+  renderStockists();
+  renderDraft();
+  toast(`Unmapped all suppliers from ${p.name} ✓`);
+}
+function selectProductForMap(name){
+  $('mpName').value=name;
+  previewMapMatch();
+  $('mpName').focus();
+  $('tab-map').scrollIntoView({behavior:'smooth'});
 }
 function addSingleMap(){
   const nm=cleanName($('mpName').value);
@@ -950,7 +1013,7 @@ function mapRowCells(p){
   const open=openRowPickId===p.id;
   const allS=[...S.stockists].sort((a,b)=>a.name.localeCompare(b.name));
   const defCell=`<select onchange="mapSet(${p.id},this.value)">${stockistOpts(p.stockistId)}</select>${p.pinned?` <span class="tag sug" title="Always used for this product">📌 fixed <a href="#" onclick="unpin(${p.id});return false">✕</a></span>`:''}`;
-  const chips=offs.map(o=>`<span class="tag ok" style="margin:1px">${esc(stk(o.id).name)} <a href="#" onclick="rmOffer(${p.id},${o.id});return false">✕</a></span>`).join(' ');
+  const chips=offs.map(o=>`<span class="tag ok" style="margin:2px;padding:3px 8px;display:inline-flex;align-items:center;gap:5px;border-radius:12px">${esc(stk(o.id).name)} <button type="button" class="unmap-btn" style="padding:0 5px;font-size:10px;line-height:14px;border-radius:8px" onclick="unmapProductStockist(${p.id},${o.id})" title="Unmap supplier">✕</button></span>`).join(' ');
   const pickTray=open?`<div class="row-pick"><div class="stk-pick" style="margin-top:0">${allS.map(s=>`<label class="stk-chip ${ids.has(s.id)?'on':''}"><input type="checkbox" ${ids.has(s.id)?'checked':''} onchange="toggleRowOffer(${p.id},${s.id},this.checked)"><span>${esc(s.name)}</span></label>`).join('')||'<span class="mut small">No stockists registered.</span>'}</div><div class="row" style="margin-top:6px;justify-content:flex-end"><button class="b sec sm" onclick="toggleRowPick(${p.id})">Done</button></div></div>`:'';
   const stkCell=`<div>${chips}${chips?' ':''}<button class="b sec sm" style="margin-top:2px" onclick="toggleRowPick(${p.id})">${open?'Done':'+ Select stockists'}</button></div>${pickTray}`;
   return {defCell,stkCell};
@@ -963,7 +1026,7 @@ function renderMap(){
   $('mapCount').textContent=list.length+' shown';
   $('mapBody').innerHTML=list.slice(0,300).map(p=>{
     const {defCell,stkCell}=mapRowCells(p);
-    return `<tr id="mr-${p.id}" class="${p.stockistId?'':'unmapped'}"><td>${esc(p.name)}</td>
+    return `<tr id="mr-${p.id}" class="${p.stockistId?'':'unmapped'}"><td><b style="cursor:pointer;color:var(--pri2)" onclick="selectProductForMap('${esc(p.name)}')" title="Click to view & unmap suppliers in mapping box above">${esc(p.name)}</b></td>
     <td id="md-${p.id}">${defCell}</td>
     <td id="ms-${p.id}">${stkCell}</td>
     <td><button class="b red sm" onclick="delProduct(${p.id})">✕</button></td></tr>`}).join('')||'<tr><td colspan=4 class="mut">No products yet – they are added automatically when you map them while ordering, or via bulk import above.</td></tr>';
@@ -982,14 +1045,17 @@ function toggleRowPick(pid){
   const p=S.products.find(x=>x.id===pid);if(p)refreshMapRow(p);
 }
 function toggleRowOffer(pid,sid,checked){
-  const p=S.products.find(x=>x.id===pid);if(!p)return;
-  if(checked){ensureOffer(p,sid);if(!p.stockistId)p.stockistId=sid}
-  else{p.offers=p.offers.filter(o=>o.id!==sid);if(p.stockistId===sid){p.stockistId=p.offers[0]?p.offers[0].id:null;p.pinned=false}}
-  save();refreshMapRow(p);renderStockists();renderMpStkChips();
+  if(checked){
+    const p=S.products.find(x=>x.id===pid);if(!p)return;
+    ensureOffer(p,sid);if(!p.stockistId)p.stockistId=sid;
+    save();refreshMapRow(p);renderStockists();renderMpStkChips();
+  }else{
+    unmapProductStockist(pid,sid);
+  }
 }
 function mapSet(id,v){const p=S.products.find(p=>p.id===id);p.stockistId=v?+v:null;p.pinned=!!v;if(v)ensureOffer(p,+v);save();refreshMapRow(p);renderStockists()}
 function unpin(id){const p=S.products.find(p=>p.id===id);p.pinned=false;save();refreshMapRow(p)}
-function rmOffer(id,sid){const p=S.products.find(p=>p.id===id);p.offers=p.offers.filter(o=>o.id!==sid);if(p.stockistId===sid){p.stockistId=p.offers[0]?p.offers[0].id:null;p.pinned=false}save();refreshMapRow(p);renderStockists();renderMpStkChips()}
+function rmOffer(id,sid){ unmapProductStockist(id,sid); }
 function delProduct(id){if(openRowPickId===id)openRowPickId=null;S.products=S.products.filter(p=>p.id!==id);save();renderMap();renderStockists()}
 function exportMapCSV(){
   const q=t=>`"${String(t).replace(/"/g,'""')}"`;const rows=['Product,Stockist'];
