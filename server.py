@@ -1,7 +1,10 @@
 import datetime
 import json
 import os
+import re
+import secrets
 import socket
+import subprocess
 import sys
 import threading
 import time
@@ -16,6 +19,70 @@ DATA_FILE = os.path.join(DATA_DIR, "po-maker-data.json")
 os.makedirs(DAILY_DIR, exist_ok=True)
 
 LOCK = threading.Lock()
+TOKENS = {}
+FAILS = {}
+PUBLIC_URL = ""
+
+# Default passcode hashes (same as the app). Custom passcodes saved in Settings override these.
+DEFAULT_PINS = {
+    "admin": "h:8655ca6449430ea4ce042b6d692607c954028d6b30cdff5fd9f0c62456e32bf5",
+    "manager": "h:bdbe1459df27553707efce285b2ba5591a1e66615984c2cfbad4f27edd36cd4d",
+    "pharmacy1": "h:e85ab2b1c2feeba410c31ae6f44dd67101554ec0187372888d5d2f9d2fc6d8e2",
+    "pharmacy2": "h:30caa9c845455fab29371edf24d0206aac94ba80601c0572992f22e8acf3922b",
+    "pharmacy3": "h:8c113698b11356f5222c37702d094e514800c7a4047247530625664893c887c2",
+}
+
+
+def pin_hash_for(role):
+    if role not in DEFAULT_PINS:
+        return None
+    cur = read_state() or {}
+    pins = (cur.get("settings") or {}).get("pins") or {}
+    return pins.get(role) or DEFAULT_PINS[role]
+
+
+def server_info():
+    return {
+        "dataFile": DATA_FILE,
+        "lanUrl": f"http://{get_lan_ip()}:{PORT}",
+        "publicUrl": PUBLIC_URL,
+    }
+
+
+def start_tunnel():
+    """Start a free Cloudflare Quick Tunnel (if cloudflared.exe is next to this file) so the app works from anywhere."""
+    global PUBLIC_URL
+    exe = os.path.join(BASE_DIR, "cloudflared.exe")
+    if not os.path.exists(exe):
+        print("  (Internet access link not enabled: cloudflared.exe not found next to server.py)")
+        return None
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    proc = subprocess.Popen(
+        [exe, "tunnel", "--no-autoupdate", "--url", f"http://127.0.0.1:{PORT}"],
+        stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True, creationflags=flags,
+    )
+
+    def reader():
+        global PUBLIC_URL
+        for line in proc.stderr:
+            m = re.search(r"https://[a-z0-9-]+\.trycloudflare\.com", line)
+            if m and not PUBLIC_URL:
+                PUBLIC_URL = m.group(0)
+                try:
+                    with open(os.path.join(DATA_DIR, "public-link.txt"), "w", encoding="utf-8") as f:
+                        f.write(PUBLIC_URL + "\n")
+                except Exception:
+                    pass
+                print("")
+                print("=" * 62)
+                print("  ANYWHERE LINK (open on any phone / PC with internet):")
+                print(f"  {PUBLIC_URL}")
+                print("  (Also saved in data\\public-link.txt and shown in Admin > Settings)")
+                print("=" * 62)
+                sys.stdout.flush()
+
+    threading.Thread(target=reader, daemon=True).start()
+    return proc
 
 
 def get_lan_ip():
@@ -144,7 +211,7 @@ class POHandler(SimpleHTTPRequestHandler):
         # Allow the GitHub Pages copy of the app (opened on this PC) to reach this local server
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, X-PO-Token")
         self.send_header("Access-Control-Allow-Private-Network", "true")
         super().end_headers()
 
@@ -152,6 +219,9 @@ class POHandler(SimpleHTTPRequestHandler):
         self.send_response(204)
         self.send_header("Content-Length", "0")
         self.end_headers()
+
+    def client_ip(self):
+        return (self.headers.get("Cf-Connecting-Ip") or self.headers.get("X-Forwarded-For") or self.client_address[0] or "?").split(",")[0].strip()
 
     def do_GET(self):
         clean_path = self.path.split("?", 1)[0]
@@ -161,10 +231,9 @@ class POHandler(SimpleHTTPRequestHandler):
             self.send_json({
                 "ok": True,
                 "localServer": True,
+                "authRequired": True,
                 "hasBackup": cur is not None,
-                "rev": str(cur.get("_rev", "")) if cur else "",
-                "dataFile": DATA_FILE,
-                "lanUrl": f"http://{get_lan_ip()}:{PORT}"
+                "rev": str(cur.get("_rev", "")) if cur else ""
             })
             return
         if clean_path == "/favicon.ico":
@@ -180,13 +249,45 @@ class POHandler(SimpleHTTPRequestHandler):
 
     def do_POST(self):
         clean_path = self.path.split("?", 1)[0]
-        if clean_path != "/api/sync":
+        if clean_path not in ("/api/sync", "/api/login"):
             self.send_json({"ok": False, "error": "Not found"}, 404)
             return
         try:
             ln = int(self.headers.get("Content-Length", "0"))
             req = json.loads(self.rfile.read(ln).decode("utf-8") or "{}")
             action = req.get("action")
+
+            if clean_path == "/api/login":
+                ip = self.client_ip()
+                now = time.time()
+                fails = [t for t in FAILS.get(ip, []) if now - t < 300]
+                FAILS[ip] = fails
+                if len(fails) >= 8:
+                    self.send_json({"ok": False, "error": "Too many wrong attempts. Try again in 5 minutes."}, 429)
+                    return
+                role = str(req.get("role", ""))
+                with LOCK:
+                    expected = pin_hash_for(role)
+                if expected and secrets.compare_digest(str(req.get("hash", "")), expected):
+                    token = secrets.token_urlsafe(24)
+                    TOKENS[token] = role
+                    FAILS[ip] = []
+                    self.send_json({"ok": True, "token": token, "role": role, **server_info()})
+                else:
+                    fails.append(now)
+                    FAILS[ip] = fails
+                    self.send_json({"ok": False, "error": "Wrong passcode"}, 401)
+                return
+
+            token = self.headers.get("X-PO-Token", "")
+            token_role = TOKENS.get(token)
+            if not token_role:
+                self.send_json({"ok": False, "error": "auth"}, 401)
+                return
+
+            if action == "info":
+                self.send_json({"ok": True, **server_info()})
+                return
 
             if action == "ping":
                 with LOCK:
@@ -286,6 +387,9 @@ class POHandler(SimpleHTTPRequestHandler):
                     return
 
                 if action == "reset":
+                    if token_role != "admin":
+                        self.send_json({"ok": False, "error": "Only Admin can erase data"}, 403)
+                        return
                     if cur:
                         ts = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
                         snap = os.path.join(DAILY_DIR, f"po-maker-before-reset-{ts}.json")
@@ -326,9 +430,21 @@ if __name__ == "__main__":
     print("  Keep this window open while counters use the app.")
     print("  Press Ctrl+C to stop.")
     sys.stdout.flush()
+    tunnel_proc = None
+    if "--no-tunnel" not in sys.argv:
+        try:
+            tunnel_proc = start_tunnel()
+        except Exception as exc:
+            print(f"  (Could not start internet link: {exc})")
     if "--no-browser" not in sys.argv:
         threading.Timer(0.8, lambda: webbrowser.open(f"http://localhost:{PORT}")).start()
     try:
         srv.serve_forever()
     except KeyboardInterrupt:
         print("\nServer stopped.")
+    finally:
+        if tunnel_proc:
+            try:
+                tunnel_proc.terminate()
+            except Exception:
+                pass

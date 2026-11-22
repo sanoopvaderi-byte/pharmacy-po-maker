@@ -1346,10 +1346,11 @@ function delPO(id){if(!confirm('Delete this record?'))return;S.history=S.history
 /* ============================ GOOGLE DRIVE SYNC ============================ */
 const HOSTED_APP_URL='https://sanoopvaderi-byte.github.io/pharmacy-po-maker/';
 let driveTimer=null,driveState='idle',driveMsg='',driveBusy=false,lastDriveRev='',lastPullAt=0,pullBusy=false;
-let localServerMode=false,localLanUrl='',localDataFile='',localLastSync='',draftPushBusy=false,localBase='';
+let localServerMode=false,localLanUrl='',localDataFile='',localLastSync='',draftPushBusy=false,localBase='',localPublicUrl='';
+let localToken=sessionStorage.getItem('po_tok')||'';
 const IS_WEB_HOST=location.protocol==='http:'||location.protocol==='https:';
 const IS_GH_PAGES=/\.github\.io$/.test(location.hostname);
-const hasLiveSync=()=>localServerMode||!!getDrive().url;
+const hasLiveSync=()=>(localServerMode&&!!localToken)||!!getDrive().url;
 function getDrive(){if(!S.settings.drive)S.settings.drive=defaultDrive();return S.settings.drive}
 function buildAppsScript(){
   const d=getDrive();
@@ -1582,9 +1583,14 @@ function buildDriveTables(){
   });
   return{suppliers,mapping,ordersPlaced,ordersSent:sentList.map(x=>x.row),staffLists};
 }
+function authLost(){
+  localToken='';sessionStorage.removeItem('po_tok');
+  if(ROLE){toast('Session expired — please login again');logout()}
+}
 async function driveCall(payload,forceDrive){
   if(localServerMode&&!forceDrive){
-    const res=await fetch(localBase+'/api/sync',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload),cache:'no-store'});
+    const res=await fetch(localBase+'/api/sync',{method:'POST',headers:{'Content-Type':'application/json','X-PO-Token':localToken},body:JSON.stringify(payload),cache:'no-store'});
+    if(res.status===401){authLost();throw new Error('Please login again')}
     const txt=await res.text();
     let j;try{j=JSON.parse(txt)}catch(e){throw new Error('Local sync server returned invalid response')}
     if(!j.ok)throw new Error(j.error||'Local server sync failed');
@@ -1614,48 +1620,67 @@ async function detectLocalServer(){
   }
   return false;
 }
-async function enableLocalServer(j){
+function applyServerInfo(j){
+  localLanUrl=j.lanUrl||localLanUrl;localDataFile=j.dataFile||localDataFile;localPublicUrl=j.publicUrl||'';
+  renderDriveUI();
+}
+async function initialServerSync(){
   try{
-    localServerMode=true;
-    localLanUrl=j.lanUrl||location.origin;
-    localDataFile=j.dataFile||'data/po-maker-data.json';
-    driveState='ok';
-    renderDriveUI();
-    if(j.hasBackup){
-      await pullFromDrive(true);
-    }else{
+    const info=await driveCall({action:'info'});applyServerInfo(info);
+    const p=await driveCall({action:'ping'});
+    if(p.hasBackup){lastPullAt=0;lastDriveRev='';await pullFromDrive(true)}
+    else{
       const hasLocal=S.stockists.length||S.products.length||S.history.length||S.requests.length||(S.messages&&S.messages.length);
       if(hasLocal)await syncToDrive(true);
     }
-    return true;
-  }catch(e){return false}
+  }catch(e){}
+}
+async function enableLocalServer(j){
+  localServerMode=true;driveState='ok';
+  if(ROLE&&!localToken){logout()}
+  else if(ROLE&&localToken){await initialServerSync()}
+  renderDriveUI();
+  return true;
 }
 function copyLocalLanUrl(){
   const u=localLanUrl||location.origin;
-  navigator.clipboard.writeText(u).then(()=>toast('Local network link copied ✓ — open on Pharmacy 1/2/3 & Store Manager devices')).catch(()=>prompt('Open this link on other PCs/phones on the same Wi-Fi:',u));
+  navigator.clipboard.writeText(u).then(()=>toast('Wi-Fi link copied ✓')).catch(()=>prompt('Open this link on other PCs/phones on the same Wi-Fi:',u));
+}
+function copyPublicUrl(){
+  const u=localPublicUrl;if(!u)return;
+  navigator.clipboard.writeText(u).then(()=>toast('Anywhere link copied ✓ — send it to your team')).catch(()=>prompt('Anywhere link (works from any location):',u));
+}
+function sharePublicUrl(){
+  if(!localPublicUrl)return;
+  window.open('https://wa.me/?text='+encodeURIComponent('Pharmacy PO Maker (live): '+localPublicUrl),'_blank');
 }
 function renderLocalSyncUI(){
   const b=$('localSyncBadge'),body=$('localSyncBody'),lg=$('lgSync');
-  if(lg)lg.innerHTML=localServerMode?'🟢 Live sync ON — data saved on the clinic PC':'⚠ Live sync OFF — start <b>Start-PO-Server.bat</b> on the clinic PC, then open <b>http://192.168.20.7:8080</b>';
+  if(lg)lg.innerHTML=localServerMode?'🟢 Live sync ON — login to load the latest data':'⚠ Live sync OFF — start <b>Start-PO-Server.bat</b> on the clinic PC, then open the Anywhere link / <b>http://192.168.20.7:8080</b>';
   if(!b||!body)return;
   if(localServerMode){
     b.className='tag ok';
     b.textContent=driveState==='syncing'?'Syncing…':driveState==='error'?'Sync error':'Active · Live';
-    body.innerHTML=`<div class="hint" style="margin-bottom:10px"><b>Local Live Sync Server is running!</b> All data is saved directly on this PC in <code>${esc(localDataFile||'data/po-maker-data.json')}</code> (with automatic daily snapshots in <code>data/daily/</code>) and syncs live across every counter PC &amp; phone on your Wi-Fi — no Google Drive setup needed.</div>
+    const pub=localPublicUrl
+      ?`<div class="row" style="margin-bottom:8px"><span><b>🌍 Anywhere link (any location, any internet):</b> <code>${esc(localPublicUrl)}</code></span><button class="b sm" onclick="copyPublicUrl()">📋 Copy</button><button class="b wa sm" onclick="sharePublicUrl()">Share on WhatsApp</button></div>`
+      :`<div class="mut small" style="margin-bottom:8px">🌍 Anywhere link not active (put <code>cloudflared.exe</code> next to <code>server.py</code> and restart the server).</div>`;
+    body.innerHTML=`<div class="hint" style="margin-bottom:10px"><b>Live Sync Server is running!</b> All data is saved on the clinic PC in <code>${esc(localDataFile||'data/po-maker-data.json')}</code> (daily snapshots in <code>data/daily/</code>) and syncs live to every device that opens the link and logs in with its passcode.</div>
+      ${pub}
       <div class="row" style="margin-bottom:8px">
-        <span><b>Open on other PCs / phones (same Wi-Fi):</b> <code>${esc(localLanUrl||location.origin)}</code></span>
-        <button class="b sm" onclick="copyLocalLanUrl()">📋 Copy Network Link</button>
+        <span><b>Same Wi-Fi link:</b> <code>${esc(localLanUrl||location.origin)}</code></span>
+        <button class="b sec sm" onclick="copyLocalLanUrl()">📋 Copy</button>
       </div>
       <div class="row">
         <button class="b sec sm" onclick="syncToDrive(false)">🔄 Sync Now</button>
         <button class="b sec sm" onclick="pullFromDrive(false)">⬇ Fetch Latest</button>
         <span class="mut small">${localLastSync?'Last synced: '+esc(new Date(localLastSync).toLocaleString()):'Live sync active (auto-updates every 3 sec)'}</span>
-      </div>`;
+      </div>
+      <p class="mut small" style="margin:8px 0 0">The Anywhere link changes each time the server PC restarts — share the new link then. The PC must stay on with the server window open.</p>`;
   }else{
     b.className='tag sug';
     b.textContent='Same-PC live';
-    body.innerHTML=`<p style="margin:0 0 6px"><b>Same-PC live sync is active:</b> all open tabs in this browser sync stockists, products, orders &amp; messages instantaneously via local storage.</p>
-      <p style="margin:0"><b>To sync live across multiple PCs &amp; phones without Google Drive:</b> double-click <code>Start-PO-Server.bat</code> in your <code>Desktop\\order</code> folder and open the shown <code>http://...</code> link on Pharmacy 1, 2, 3 &amp; Store Manager devices on the same Wi-Fi.</p>`;
+    body.innerHTML=`<p style="margin:0 0 6px"><b>Same-PC live sync is active:</b> all open tabs in this browser sync instantly via local storage.</p>
+      <p style="margin:0"><b>For live sync across different locations:</b> double-click <code>Start-PO-Server.bat</code> on the clinic PC — it prints an <b>Anywhere link</b> that works on any phone/PC with internet.</p>`;
   }
 }
 let driveUnlocked=false,driveAfterUnlock=null;
@@ -1888,6 +1913,7 @@ async function saveAndTestDrive(){
 }
 function scheduleDriveSync(){
   const d=getDrive();
+  if(localServerMode&&!localToken)return;
   if(!localServerMode&&(!d.url||!d.auto))return;
   driveState='pending';renderDriveUI();
   clearTimeout(driveTimer);
@@ -1895,6 +1921,7 @@ function scheduleDriveSync(){
 }
 async function syncToDrive(isAuto,clearedChannel,forceDrive){
   const useLocal=localServerMode&&!forceDrive;
+  if(useLocal&&!localToken)return;
   if(!useLocal&&!isAuto&&!driveUnlocked)return requireDriveUnlock(()=>syncToDrive(false,clearedChannel,forceDrive));
   if(!useLocal&&!isAuto&&$('drvUrl')&&!$('tab-settings').classList.contains('hide'))readDriveInputs();
   const d=getDrive();
@@ -2282,13 +2309,28 @@ function pickRole(r){
   document.querySelectorAll('#roleBtns button').forEach(b=>b.classList.toggle('on',b.dataset.r===loginRole));
   $('lgErr').textContent='';$('lgPin').focus();
 }
-function doLogin(){
+async function doLogin(){
   const v=$('lgPin').value.trim();
+  if(localServerMode){
+    try{
+      const r=await fetch(localBase+'/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({role:loginRole,hash:pinHash(loginRole,v)}),cache:'no-store'});
+      const j=await r.json();
+      if(j&&j.ok){
+        localToken=j.token;sessionStorage.setItem('po_tok',j.token);applyServerInfo(j);
+        ROLE=loginRole;sessionStorage.setItem('po_role',ROLE);$('lgPin').value='';
+        applyRole(true);
+        initialServerSync();
+      }else{
+        $('lgErr').textContent=(j&&j.error)||'Wrong passcode';$('lgPin').value='';$('lgPin').focus();
+      }
+      return;
+    }catch(e){/* server unreachable: fall back to this device's saved passcodes */}
+  }
   const pins=Object.assign({},DEFAULT_PINS,S.settings.pins||{});
   if(pinMatch(loginRole,v,pins[loginRole])){ROLE=loginRole;sessionStorage.setItem('po_role',ROLE);$('lgPin').value='';applyRole()}
   else{$('lgErr').textContent='Wrong passcode';$('lgPin').value='';$('lgPin').focus()}
 }
-function logout(){ROLE=null;liveDrafts={};driveUnlocked=false;driveAfterUnlock=null;sessionStorage.removeItem('po_role');applyRole()}
+function logout(){ROLE=null;liveDrafts={};driveUnlocked=false;driveAfterUnlock=null;localToken='';sessionStorage.removeItem('po_tok');sessionStorage.removeItem('po_role');applyRole()}
 function applyRole(skipPull){
   const info=ROLE&&ROLES[ROLE];
   if(!info||ROLE!=='admin'){driveUnlocked=false;driveAfterUnlock=null}
