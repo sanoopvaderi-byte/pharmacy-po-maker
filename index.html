@@ -288,8 +288,14 @@
         <input id="stkSearch" placeholder="🔍 Search stockist, phone or location…" oninput="renderStockists()" style="width:260px">
         <span class="mut small" id="stkCount"></span>
       </div>
+      <label id="stkShowAllWrap" class="mp-toggle" title="Toggle ON to display all registered stockists, or keep OFF and use the search bar">
+        <input type="checkbox" id="stkShowAll" onchange="toggleStkShowAll(this.checked)">
+        <span class="mp-switch"></span>
+        <span id="stkShowAllLbl">Show all: OFF</span>
+      </label>
     </div>
-    <div style="overflow:auto"><table><thead><tr><th>Name</th><th>WhatsApp</th><th>Location</th><th>Products mapped</th><th></th></tr></thead><tbody id="stkBody"></tbody></table></div>
+    <div id="stkHiddenMsg" class="mut small" style="padding:4px 2px"></div>
+    <div id="stkTableWrap" class="hide" style="overflow:auto;max-height:600px"><table><thead><tr><th>Name</th><th>WhatsApp</th><th>Location</th><th>Products mapped</th><th></th></tr></thead><tbody id="stkBody"></tbody></table></div>
   </div>
 </section>
 
@@ -913,7 +919,11 @@ function printPO(poId){
 }
 
 /* ============================ STOCKISTS ============================ */
-let editStkId=null;
+let editStkId=null,stkShowAll=false;
+function toggleStkShowAll(on){
+  stkShowAll=!!on;
+  renderStockists();
+}
 function updateStkFormMode(){
   const editing=editStkId!==null&&stk(editStkId);
   const btn=$('sAddBtn'),cbtn=$('sCancelBtn'),ttl=$('stkFormTitle');
@@ -1078,14 +1088,35 @@ function renderStockists(){
   if(dlEl){
     dlEl.innerHTML=[...S.stockists].sort((a,b)=>a.name.localeCompare(b.name)).map(s=>`<option value="${esc(s.name)}">`).join('');
   }
+  const cb=$('stkShowAll'),wrap=$('stkShowAllWrap'),lbl=$('stkShowAllLbl');
+  if(cb)cb.checked=stkShowAll;
+  if(wrap)wrap.classList.toggle('on',stkShowAll);
+  if(lbl)lbl.textContent=stkShowAll?`Show all: ON (${S.stockists.length})`:'Show all: OFF';
+
+  const q=norm($('stkSearch')?.value||'');
+  const hiddenEl=$('stkHiddenMsg'),tblWrap=$('stkTableWrap');
+
+  if(!stkShowAll && !q){
+    if(tblWrap)tblWrap.classList.add('hide');
+    if(hiddenEl){
+      hiddenEl.classList.remove('hide');
+      hiddenEl.innerHTML=`Registered stockist list hidden (${S.stockists.length} suppliers) — search in <b>🔍 Search stockist, phone or location…</b> above, or toggle <b>Show all</b> ON to view the full list.`;
+    }
+    if($('stkCount'))$('stkCount').textContent=`${S.stockists.length} total (hidden)`;
+    $('stkBody').innerHTML='';
+    return;
+  }
+
+  if(hiddenEl)hiddenEl.classList.add('hide');
+  if(tblWrap)tblWrap.classList.remove('hide');
+
   const cntByStk={};
   S.products.forEach(p=>(p.offers||[]).forEach(o=>{cntByStk[o.id]=(cntByStk[o.id]||0)+1}));
-  const q=norm($('stkSearch')?.value||'');
   const list=S.stockists.filter(s=>!q||norm(s.name).includes(q)||norm(s.phone).includes(q)||norm(s.location).includes(q));
-  if($('stkCount'))$('stkCount').textContent=q?`${list.length} of ${S.stockists.length} shown`:`${S.stockists.length} total`;
-  $('stkBody').innerHTML=list.map(s=>`<tr><td><input value="${esc(s.name)}" onchange="stk(${s.id}).name=cleanName(this.value);save();renderMap()" style="width:100%;min-width:140px"></td>
-    <td><input value="${esc(s.phone)}" placeholder="WhatsApp number" onchange="stk(${s.id}).phone=this.value.trim();save()" style="width:150px"></td>
-    <td><input value="${esc(s.location||'')}" placeholder="Location (optional)" onchange="stk(${s.id}).location=cleanName(this.value);save()" style="width:100%;min-width:120px"></td>
+  if($('stkCount'))$('stkCount').textContent=q?`${list.length} of ${S.stockists.length} shown`:`${S.stockists.length} shown`;
+  $('stkBody').innerHTML=list.map(s=>`<tr><td><input value="${esc(s.name)}" onchange="stk(${s.id}).name=cleanName(this.value);save();renderMap()" style="width:100%;min-width:110px"></td>
+    <td><input value="${esc(s.phone)}" placeholder="WhatsApp number" onchange="stk(${s.id}).phone=this.value.trim();save()" style="width:135px"></td>
+    <td><input value="${esc(s.location||'')}" placeholder="Location (optional)" onchange="stk(${s.id}).location=cleanName(this.value);save()" style="width:100%;min-width:100px"></td>
     <td>${cntByStk[s.id]||0}</td>
     <td style="white-space:nowrap"><button class="b sec sm" onclick="selectStockistForEdit(${s.id})">Edit</button> <button class="b red sm" onclick="delStockist(${s.id})">Delete</button></td></tr>`).join('')||'<tr><td colspan=5 class="mut">'+(q?'No matching stockists found.':'No stockists yet.')+'</td></tr>';
 }
