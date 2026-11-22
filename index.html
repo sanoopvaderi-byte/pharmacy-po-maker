@@ -316,13 +316,21 @@
     </div>
   </div>
   <div class="card">
-    <div class="row" style="margin-bottom:8px">
-      <h2 style="margin:0">Product master</h2>
-      <input id="mapSearch" placeholder="🔍 Search product or supplier…" oninput="renderMap()" style="width:240px">
-      <label class="small"><input type="checkbox" id="mapUnm" onchange="renderMap()"> Show only unmapped</label>
-      <span class="mut small" id="mapCount"></span>
+    <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div class="row" style="gap:8px">
+        <h2 style="margin:0">Product master</h2>
+        <input id="mapSearch" placeholder="🔍 Search product or supplier…" oninput="renderMap()" style="width:240px">
+        <label class="small"><input type="checkbox" id="mapUnm" onchange="renderMap()"> Show only unmapped</label>
+        <span class="mut small" id="mapCount"></span>
+      </div>
+      <label id="pmShowAllWrap" class="mp-toggle" title="Toggle ON to show the full Product Master list, or keep OFF and use the search bar">
+        <input type="checkbox" id="pmShowAll" onchange="togglePmShowAll(this.checked)">
+        <span class="mp-switch"></span>
+        <span id="pmShowAllLbl">Show all: OFF</span>
+      </label>
     </div>
-    <div class="stk" style="overflow:auto;max-height:600px"><table>
+    <div id="pmHiddenMsg" class="mut small" style="padding:4px 2px"></div>
+    <div id="pmTableWrap" class="stk hide" style="overflow:auto;max-height:600px"><table>
       <thead><tr><th>Product</th><th>Default stockist</th><th>All stockists for this product</th><th></th></tr></thead><tbody id="mapBody"></tbody></table></div>
   </div>
 </section>
@@ -907,7 +915,7 @@ function renderStockists(){
 function delStockist(id){if(!confirm('Delete this stockist? Its products become unmapped.'))return;mpSel.delete(id);S.stockists=S.stockists.filter(s=>s.id!==id);S.products.forEach(p=>{p.offers=p.offers.filter(o=>o.id!==id);if(p.stockistId===id){p.stockistId=p.offers[0]?p.offers[0].id:null;p.pinned=false}});S.draft.forEach(r=>{if(r.stockistId===id)r.stockistId=null});save();renderStockists();renderMap();renderDraft()}
 
 /* ============================ MAPPING ============================ */
-let mpSel=new Set(),openRowPickId=null,mpShowAll=false,rowPickFilter='';
+let mpSel=new Set(),openRowPickId=null,mpShowAll=false,pmShowAll=false,rowPickFilter='',rowPickShowAll=false;
 function toggleMpShowAll(on){
   mpShowAll=!!on;
   const cb=$('mpShowAll'),wrap=$('mpShowAllWrap'),lbl=$('mpShowAllLbl');
@@ -915,6 +923,10 @@ function toggleMpShowAll(on){
   if(wrap)wrap.classList.toggle('on',mpShowAll);
   if(lbl)lbl.textContent=mpShowAll?`Show all suppliers: ON (${S.stockists.length})`:'Show all suppliers: OFF';
   renderMpStkChips();
+}
+function togglePmShowAll(on){
+  pmShowAll=!!on;
+  renderMap();
 }
 function updateMpBtn(){
   const b=$('mpAddBtn');if(!b)return;
@@ -1107,24 +1119,49 @@ function bulkMap(){
   $('mapBulk').value='';save();renderMap();renderStockists();renderDraft();
   toast(`${created+merged} mapped (${created} new, ${merged} added to existing)`)
 }
-function filterRowPick(inp){
-  rowPickFilter=inp.value;
-  const q=norm(rowPickFilter);
-  const box=inp.parentElement.querySelector('.stk-pick');
-  if(!box)return;
-  box.querySelectorAll('.stk-chip').forEach(ch=>{
-    ch.style.display=(!q||norm(ch.textContent).includes(q))?'':'none';
-  });
+function renderRowPickChipsHtml(p){
+  const ids=new Set((p.offers||[]).filter(o=>stk(o.id)).map(o=>o.id));
+  const allS=[...S.stockists].sort((a,b)=>a.name.localeCompare(b.name));
+  if(!allS.length)return '<span class="mut small">No stockists registered.</span>';
+  const rfq=norm(rowPickFilter);
+  if(!rowPickShowAll && !rfq){
+    const mappedS=allS.filter(s=>ids.has(s.id));
+    const chips=mappedS.map(s=>`<label class="stk-chip on"><input type="checkbox" checked onchange="toggleRowOffer(${p.id},${s.id},this.checked)"><span>${esc(s.name)}</span></label>`).join('');
+    return (chips?chips:'')+`<span class="mut small" style="width:100%">Search supplier above or toggle <b>Show all</b> ON to browse all ${allS.length} suppliers.</span>`;
+  }
+  const list=rfq?allS.filter(s=>norm(s.name).includes(rfq)):allS;
+  return list.length?list.map(s=>`<label class="stk-chip ${ids.has(s.id)?'on':''}"><input type="checkbox" ${ids.has(s.id)?'checked':''} onchange="toggleRowOffer(${p.id},${s.id},this.checked)"><span>${esc(s.name)}</span></label>`).join(''):'<span class="mut small">No matching suppliers.</span>';
+}
+function filterRowPick(pid,val){
+  rowPickFilter=val;
+  const p=S.products.find(x=>x.id===pid);
+  const box=$('rp-list-'+pid);
+  if(p&&box)box.innerHTML=renderRowPickChipsHtml(p);
+}
+function toggleRowPickShowAll(pid,on){
+  rowPickShowAll=!!on;
+  const p=S.products.find(x=>x.id===pid);
+  if(p)refreshMapRow(p);
 }
 function mapRowCells(p){
   const offs=p.offers.filter(o=>stk(o.id));
-  const ids=new Set(offs.map(o=>o.id));
   const open=openRowPickId===p.id;
-  const allS=[...S.stockists].sort((a,b)=>a.name.localeCompare(b.name));
   const defCell=`<select onchange="mapSet(${p.id},this.value)">${stockistOpts(p.stockistId)}</select>${p.pinned?` <span class="tag sug" title="Always used for this product">📌 fixed <a href="#" onclick="unpin(${p.id});return false">✕</a></span>`:''}`;
   const chips=offs.map(o=>`<span class="tag ok" style="margin:2px;padding:3px 8px;display:inline-flex;align-items:center;gap:5px;border-radius:12px">${esc(stk(o.id).name)} <button type="button" class="unmap-btn" style="padding:0 5px;font-size:10px;line-height:14px;border-radius:8px" onclick="unmapProductStockist(${p.id},${o.id})" title="Unmap supplier">✕</button></span>`).join(' ');
-  const rfq=norm(rowPickFilter);
-  const pickTray=open?`<div class="row-pick"><input value="${esc(rowPickFilter)}" placeholder="🔍 Filter suppliers…" style="width:200px;margin-bottom:6px" oninput="filterRowPick(this)"><div class="stk-pick" style="margin-top:0;max-height:200px;overflow-y:auto">${allS.map(s=>{const vis=(!rfq||norm(s.name).includes(rfq))?'':'display:none';return `<label class="stk-chip ${ids.has(s.id)?'on':''}" style="${vis}"><input type="checkbox" ${ids.has(s.id)?'checked':''} onchange="toggleRowOffer(${p.id},${s.id},this.checked)"><span>${esc(s.name)}</span></label>`}).join('')||'<span class="mut small">No stockists registered.</span>'}</div><div class="row" style="margin-top:6px;justify-content:flex-end"><button class="b sec sm" onclick="toggleRowPick(${p.id})">Done</button></div></div>`:'';
+  const pickTray=open?`<div class="row-pick">
+    <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:6px;gap:6px">
+      <input value="${esc(rowPickFilter)}" placeholder="🔍 Search supplier…" style="width:190px" oninput="filterRowPick(${p.id},this.value)">
+      <div class="row" style="gap:6px">
+        <label class="mp-toggle ${rowPickShowAll?'on':''}" style="padding:2px 8px;font-size:11.5px" title="Toggle ON to display all suppliers">
+          <input type="checkbox" ${rowPickShowAll?'checked':''} onchange="toggleRowPickShowAll(${p.id},this.checked)">
+          <span class="mp-switch"></span>
+          <span>${rowPickShowAll?`Show all: ON (${S.stockists.length})`:'Show all: OFF'}</span>
+        </label>
+        <button class="b sec sm" onclick="toggleRowPick(${p.id})">Done</button>
+      </div>
+    </div>
+    <div class="stk-pick" id="rp-list-${p.id}" style="margin-top:0;max-height:200px;overflow-y:auto">${renderRowPickChipsHtml(p)}</div>
+  </div>`:'';
   const stkCell=`<div>${chips}${chips?' ':''}<button class="b sec sm" style="margin-top:2px" onclick="toggleRowPick(${p.id})">${open?'Done':'+ Select stockists'}</button></div>${pickTray}`;
   return {defCell,stkCell};
 }
@@ -1132,7 +1169,29 @@ function renderMap(){
   if($('mpName')&&$('mpName').value.trim())previewMapMatch();
   else renderMpStkChips();
   $('prodList').innerHTML=S.products.map(p=>`<option value="${esc(p.name)}">`).join('');
+
+  const cb=$('pmShowAll'),wrap=$('pmShowAllWrap'),lbl=$('pmShowAllLbl');
+  if(cb)cb.checked=pmShowAll;
+  if(wrap)wrap.classList.toggle('on',pmShowAll);
+  if(lbl)lbl.textContent=pmShowAll?`Show all: ON (${S.products.length})`:'Show all: OFF';
+
   const q=norm($('mapSearch').value),cq=canon($('mapSearch').value),un=$('mapUnm').checked;
+  const hiddenEl=$('pmHiddenMsg'),tblWrap=$('pmTableWrap');
+
+  if(!pmShowAll && !q && !un){
+    if(tblWrap)tblWrap.classList.add('hide');
+    if(hiddenEl){
+      hiddenEl.classList.remove('hide');
+      hiddenEl.innerHTML=`Product &amp; supplier list hidden (${S.products.length} products) — search in <b>🔍 Search product or supplier…</b> above, tick <b>Show only unmapped</b>, or toggle <b>Show all</b> ON to view the full list.`;
+    }
+    $('mapCount').textContent=`${S.products.length} total (hidden)`;
+    $('mapBody').innerHTML='';
+    return;
+  }
+
+  if(hiddenEl)hiddenEl.classList.add('hide');
+  if(tblWrap)tblWrap.classList.remove('hide');
+
   const list=S.products.filter(p=>{
     if(un&&p.stockistId)return false;
     if(!q)return true;
@@ -1145,7 +1204,7 @@ function renderMap(){
     return `<tr id="mr-${p.id}" class="${p.stockistId?'':'unmapped'}"><td><b style="cursor:pointer;color:var(--pri2)" onclick="selectProductForMap(${p.id})" title="Click to view & unmap suppliers in mapping box above">${esc(p.name)}</b></td>
     <td id="md-${p.id}">${defCell}</td>
     <td id="ms-${p.id}">${stkCell}</td>
-    <td><button class="b red sm" onclick="delProduct(${p.id})">✕</button></td></tr>`}).join('')||'<tr><td colspan=4 class="mut">No products yet – they are added automatically when you map them while ordering, or via bulk import above.</td></tr>';
+    <td><button class="b red sm" onclick="delProduct(${p.id})">✕</button></td></tr>`}).join('')||'<tr><td colspan=4 class="mut">No matching products found.</td></tr>';
 }
 function refreshMapRow(p){
   const tr=$('mr-'+p.id),md=$('md-'+p.id),ms=$('ms-'+p.id);
@@ -1157,6 +1216,7 @@ function refreshMapRow(p){
 function toggleRowPick(pid){
   const prev=openRowPickId;
   rowPickFilter='';
+  rowPickShowAll=false;
   openRowPickId=openRowPickId===pid?null:pid;
   if(prev&&prev!==pid){const pp=S.products.find(x=>x.id===prev);if(pp)refreshMapRow(pp)}
   const p=S.products.find(x=>x.id===pid);if(p)refreshMapRow(p);
