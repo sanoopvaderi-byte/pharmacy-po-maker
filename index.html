@@ -120,6 +120,14 @@
   body.dark .stk-chip:hover{border-color:#34d399}
   body.dark .stk-chip.on{background:#064e3b;border-color:#10b981;color:#6ee7b7}
   body.dark .row-pick{background:#0f172a;border-color:#334155}
+  .chat-box{min-height:240px;max-height:420px;overflow:auto;display:flex;flex-direction:column;gap:8px;padding:12px;border:1px solid var(--line);border-radius:10px;background:#f8fafc}
+  .chat-msg{max-width:82%;padding:8px 12px;border-radius:12px;border:1px solid var(--line);background:#fff;align-self:flex-start}
+  .chat-msg.me{align-self:flex-end;background:#dcfce7;border-color:#9fd6bb}
+  .chat-meta{font-size:11.5px;color:var(--mut);display:flex;gap:8px;align-items:center}
+  .chat-text{white-space:pre-wrap;word-break:break-word;margin-top:3px}
+  body.dark .chat-box{background:#0f172a;border-color:#334155}
+  body.dark .chat-msg{background:#1e293b;border-color:#334155}
+  body.dark .chat-msg.me{background:#064e3b;border-color:#15803d;color:#dcfce7}
   details summary{cursor:pointer}
 </style>
 </head>
@@ -173,12 +181,14 @@
   <button data-t="stockists" class="mgr-only">2 · Stockists</button>
   <button data-t="map" class="mgr-only">3 · Product → Stockist Mapping</button>
   <button data-t="history" class="mgr-only">History</button>
+  <button data-t="msg" id="navMsg">💬 Messages</button>
   <button data-t="settings" class="admin-only">Settings</button>
 </nav>
 
 <main>
 <!-- ===================== CREATE ORDER ===================== -->
 <section id="tab-staff" class="hide">
+  <div id="staffMsgAlert"></div>
   <div class="card">
     <h2 id="staffTitle">✍ Needed / short products</h2>
     <div class="hint">Enter each product &amp; quantity, then click the small <b>✓</b> tick button to save it. <b>Ticked items stay saved even if you close or refresh the page.</b> When ready, press <b>Send order list</b>.</div>
@@ -311,6 +321,23 @@
   </div>
 </section>
 
+<!-- ===================== MESSAGES ===================== -->
+<section id="tab-msg" class="hide">
+  <div class="card">
+    <div class="row" style="justify-content:space-between;margin-bottom:10px">
+      <h2 id="msgTitle" style="margin:0">💬 Messages</h2>
+      <button id="btnClearChat" class="b red sm mgr-only" onclick="clearChannelMsgs()">Clear chat</button>
+    </div>
+    <div id="msgChannels" class="row mgr-only" style="margin-bottom:10px"></div>
+    <div id="msgHint" class="small mut" style="margin-bottom:8px"></div>
+    <div id="chatBox" class="chat-box"></div>
+    <div class="row" style="margin-top:10px">
+      <input id="msgInput" placeholder="Type a message…" style="flex:1;min-width:200px" onkeydown="if(event.key==='Enter')sendChatMsg()">
+      <button class="b" onclick="sendChatMsg()">Send ➤</button>
+    </div>
+  </div>
+</section>
+
 <!-- ===================== SETTINGS ===================== -->
 <section id="tab-settings" class="hide">
   <div class="card">
@@ -437,11 +464,11 @@ function pinMatch(role,entered,stored){if(!stored)return false;return stored.sta
 const DEFAULT_PINS={admin:'h:8655ca6449430ea4ce042b6d692607c954028d6b30cdff5fd9f0c62456e32bf5',manager:'h:bdbe1459df27553707efce285b2ba5591a1e66615984c2cfbad4f27edd36cd4d',pharmacy1:'h:e85ab2b1c2feeba410c31ae6f44dd67101554ec0187372888d5d2f9d2fc6d8e2',pharmacy2:'h:30caa9c845455fab29371edf24d0206aac94ba80601c0572992f22e8acf3922b',pharmacy3:'h:8c113698b11356f5222c37702d094e514800c7a4047247530625664893c887c2'};
 const SECURE_PIN_HASH='h:c84dbaafcc1b6bd116520a3b7cdfb1df1cccb8d9191b563affb41982db9d4540';
 const ROLES={
-  admin:{label:'Admin',tabs:['po','stockists','map','history','settings','staff'],home:'po',kind:'admin'},
-  manager:{label:'Store Manager',tabs:['po','stockists','map','history'],home:'po',kind:'manager'},
-  pharmacy1:{label:'Pharmacy 1',tabs:['staff'],home:'staff',kind:'pharmacy'},
-  pharmacy2:{label:'Pharmacy 2',tabs:['staff'],home:'staff',kind:'pharmacy'},
-  pharmacy3:{label:'Pharmacy 3',tabs:['staff'],home:'staff',kind:'pharmacy'},
+  admin:{label:'Admin',tabs:['po','stockists','map','history','msg','settings','staff'],home:'po',kind:'admin'},
+  manager:{label:'Store Manager',tabs:['po','stockists','map','history','msg'],home:'po',kind:'manager'},
+  pharmacy1:{label:'Pharmacy 1',tabs:['staff','msg'],home:'staff',kind:'pharmacy'},
+  pharmacy2:{label:'Pharmacy 2',tabs:['staff','msg'],home:'staff',kind:'pharmacy'},
+  pharmacy3:{label:'Pharmacy 3',tabs:['staff','msg'],home:'staff',kind:'pharmacy'},
 };
 const normBy=b=>b==='staff'?'pharmacy1':(b||'pharmacy1');
 const roleLabel=r=>ROLES[normBy(r)]?ROLES[normBy(r)].label:(r||'Pharmacy 1');
@@ -510,11 +537,12 @@ function dedupeCatalog(s){
 function randKey(){const c='abcdefghjkmnpqrstuvwxyz23456789';let r='';for(let i=0;i<16;i++)r+=c[Math.floor(Math.random()*c.length)];return r}
 function defaultDrive(){return{url:'',secret:randKey(),folder:'Pharmacy PO Maker Backups',auto:true,folderUrl:DEFAULT_DRIVE_URL,sheetUrl:'',lastSync:''}}
 let S=load();
-function blank(){return{settings:{unit:'Box',pick:'lowest',pins:Object.assign({},DEFAULT_PINS),shop:'INHAERO CLINIC PHARMACY',phone:'',cc:'91',footer:'Kindly confirm availability & rate. Thank you.',drive:defaultDrive()},stockists:[],products:[],draft:[],requests:[],staffDrafts:{},history:[],seq:0,uid:1}}
+function blank(){return{settings:{unit:'Box',pick:'lowest',pins:Object.assign({},DEFAULT_PINS),shop:'INHAERO CLINIC PHARMACY',phone:'',cc:'91',footer:'Kindly confirm availability & rate. Thank you.',drive:defaultDrive()},stockists:[],products:[],draft:[],requests:[],staffDrafts:{},messages:[],history:[],seq:0,uid:1}}
 function load(){try{const s=JSON.parse(localStorage.getItem(KEY));if(s&&s.settings)return migrate(s)}catch(e){}return blank()}
 function migrate(s){
   s.requests=s.requests||[];s.requests.forEach(q=>{q.status=q.status||'pending';if(q.by==='staff')q.by='pharmacy1'});
   s.staffDrafts=s.staffDrafts||{};if(s.staffDraft&&s.staffDraft.length&&!s.staffDrafts.pharmacy1){s.staffDrafts.pharmacy1=s.staffDraft}delete s.staffDraft;
+  s.messages=s.messages||[];
   s.draft=s.draft||[];s.history=s.history||[];s.settings.pick=s.settings.pick||'lowest';
   const pins=Object.assign({},DEFAULT_PINS,s.settings.pins||{});
   if(!s.settings.pins&&s.settings.adminPin)pins.admin=s.settings.adminPin;
@@ -527,7 +555,11 @@ const uid=()=>S.uid++;
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const $=id=>document.getElementById(id);
 function toast(m){const t=$('toast');t.textContent=m;t.classList.add('show');clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.remove('show'),2200)}
-function hdr(){$('hdrStats').textContent=`${S.stockists.length} stockists · ${S.products.length} products · ${S.products.filter(p=>p.stockistId).length} mapped`;$('navPo').textContent='1 · Create Order'+(pendingReqs().length?` 🔔 ${pendingReqs().length}`:'')}
+function hdr(){
+  $('hdrStats').textContent=`${S.stockists.length} stockists · ${S.products.length} products · ${S.products.filter(p=>p.stockistId).length} mapped`;
+  $('navPo').textContent='1 · Create Order'+(pendingReqs().length?` 🔔 ${pendingReqs().length}`:'');
+  if(typeof updateMsgBadges==='function')updateMsgBadges();
+}
 
 /* ============================ HELPERS ============================ */
 const norm=s=>String(s).toLowerCase().replace(/&/g,' and ').replace(/[^a-z0-9]+/g,' ').trim();
@@ -1766,6 +1798,99 @@ function renderStaffHistory(){
   $('staffHist').innerHTML=rows.slice(0,300).join('')||`<tr><td colspan=${isAdm?7:6} class="mut">No lists sent in the last 24 hours.</td></tr>`;
 }
 
+/* ---------------- internal messages (store manager <-> pharmacy 1/2/3) ---------------- */
+const PHARM_CHS=['pharmacy1','pharmacy2','pharmacy3'];
+let curMsgCh='pharmacy1';
+function unreadCountFor(role,chOpt){
+  if(!role||!ROLES[role])return 0;
+  const isPh=ROLES[role].kind==='pharmacy';
+  return (S.messages||[]).filter(m=>{
+    if(isPh&&m.channel!==role)return false;
+    if(!isPh&&chOpt&&m.channel!==chOpt)return false;
+    if(m.from===role)return false;
+    return !(m.readBy||[]).includes(role);
+  }).length;
+}
+function updateMsgBadges(){
+  const nm=$('navMsg');
+  if(!nm||!ROLE||!ROLES[ROLE])return;
+  const u=unreadCountFor(ROLE);
+  nm.textContent='💬 Messages'+(u?` 🔔 ${u}`:'');
+  const al=$('staffMsgAlert');
+  if(al){
+    if(ROLES[ROLE].kind==='pharmacy'&&u>0){
+      al.innerHTML=`<div class="card pending-bar"><div class="row" style="justify-content:space-between"><b>💬 You have ${u} new message${u>1?'s':''} from Store Manager</b><button class="b sm" onclick="showTab('msg')">Open Messages ➜</button></div></div>`;
+    }else al.innerHTML='';
+  }
+}
+function setMsgChannel(ch){curMsgCh=ch;renderMessages()}
+function renderMessages(){
+  if(!ROLE||!ROLES[ROLE])return;
+  const isPh=ROLES[ROLE].kind==='pharmacy';
+  const ch=isPh?ROLE:curMsgCh;
+  // Mark messages in viewed channel as read for current role
+  let dirty=false;
+  if(ch!=='all'){
+    (S.messages||[]).forEach(m=>{
+      if(m.channel===ch&&m.from!==ROLE){
+        m.readBy=m.readBy||[];
+        if(!m.readBy.includes(ROLE)){m.readBy.push(ROLE);dirty=true}
+      }
+    });
+    if(dirty)save(true);
+  }
+  updateMsgBadges();
+  if($('msgTitle'))$('msgTitle').textContent=isPh?`💬 ${roleLabel(ROLE)} ↔ Store Manager`:'💬 Store Manager ↔ Pharmacies';
+  if($('btnClearChat'))$('btnClearChat').classList.toggle('hide',isPh||ch==='all');
+  if(!isPh&&$('msgChannels')){
+    const btns=PHARM_CHS.map(c=>{
+      const u=unreadCountFor(ROLE,c);
+      return `<button class="b sec sm ${curMsgCh===c?'on':''}" onclick="setMsgChannel('${c}')">${roleLabel(c)}${u?` 🔔 ${u}`:''}</button>`;
+    });
+    btns.push(`<button class="b sec sm ${curMsgCh==='all'?'on':''}" onclick="setMsgChannel('all')">📢 Send to All</button>`);
+    $('msgChannels').innerHTML=btns.join('');
+  }
+  if($('msgHint'))$('msgHint').textContent=isPh
+    ?'Messages from Store Manager / Admin appear here. Type below to reply.'
+    :(ch==='all'?'Broadcast mode: sending here delivers your message to Pharmacy 1, Pharmacy 2, and Pharmacy 3 at once.':`Two-way chat with ${roleLabel(ch)} — they can read and reply directly.`);
+  if($('msgInput'))$('msgInput').placeholder=isPh?'Type your reply to Store Manager…':(ch==='all'?'Type message to all 3 pharmacies…':`Type message to ${roleLabel(ch)}…`);
+
+  const list=ch==='all'?(S.messages||[]).slice(-100):(S.messages||[]).filter(m=>m.channel===ch);
+  const box=$('chatBox');
+  if(!box)return;
+  box.innerHTML=list.length?list.map(m=>{
+    const mine=isPh?(m.from===ROLE):(m.from==='manager'||m.from==='admin');
+    const who=roleLabel(m.from)+(ch==='all'?` → ${roleLabel(m.channel)}`:'');
+    return `<div class="chat-msg ${mine?'me':''}"><div class="chat-meta"><b>${esc(who)}</b><span>${esc(new Date(m.date).toLocaleString())}</span></div><div class="chat-text">${esc(m.text)}</div></div>`;
+  }).join(''):`<span class="mut small">${ch==='all'?'No messages yet. Type below to send a message to all 3 pharmacies.':'No messages yet. Type below to start the conversation.'}</span>`;
+  box.scrollTop=box.scrollHeight;
+}
+function sendChatMsg(){
+  if(!ROLE||!ROLES[ROLE])return;
+  const inp=$('msgInput');if(!inp)return;
+  const txt=inp.value.trim();if(!txt)return;
+  const isPh=ROLES[ROLE].kind==='pharmacy';
+  const now=new Date().toISOString();
+  S.messages=S.messages||[];
+  if(isPh){
+    S.messages.push({id:uid(),channel:ROLE,from:ROLE,text:txt,date:now,readBy:[ROLE]});
+  }else{
+    const targets=curMsgCh==='all'?PHARM_CHS:[curMsgCh];
+    targets.forEach(ch=>S.messages.push({id:uid(),channel:ch,from:ROLE,text:txt,date:now,readBy:['manager','admin']}));
+  }
+  if(S.messages.length>500)S.messages=S.messages.slice(-500);
+  inp.value='';
+  save();renderMessages();inp.focus();
+  if(!isPh&&curMsgCh==='all')toast('Sent to Pharmacy 1, 2 & 3 ✓');
+}
+function clearChannelMsgs(){
+  if(ROLE!=='admin'&&ROLE!=='manager')return;
+  if(curMsgCh==='all')return;
+  if(!confirm(`Clear all messages with ${roleLabel(curMsgCh)}?`))return;
+  S.messages=(S.messages||[]).filter(m=>m.channel!==curMsgCh);
+  save();renderMessages();toast('Chat cleared');
+}
+
 /* ---------------- login / roles ---------------- */
 let ROLE=sessionStorage.getItem('po_role');
 if(ROLE&&!ROLES[ROLE]){ROLE=null;sessionStorage.removeItem('po_role')}
@@ -1774,7 +1899,7 @@ function showTab(t){
   if(!ROLE||!ROLES[ROLE]||!ROLES[ROLE].tabs.includes(t))return;
   document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));
   document.querySelectorAll('main>section').forEach(s=>s.classList.toggle('hide',s.id!=='tab-'+t));
-  if(t==='po')renderDraft();if(t==='staff')renderStaff();if(t==='stockists')renderStockists();if(t==='map')renderMap();if(t==='history')renderHistory();if(t==='settings')renderSettings();
+  if(t==='po')renderDraft();if(t==='staff')renderStaff();if(t==='stockists')renderStockists();if(t==='map')renderMap();if(t==='history')renderHistory();if(t==='msg')renderMessages();if(t==='settings')renderSettings();
 }
 $('nav').addEventListener('click',e=>{const t=e.target.dataset.t;if(!t)return;showTab(t)});
 function pickRole(r){
@@ -1798,8 +1923,8 @@ function applyRole(){
   $('who').textContent=info?('👤 '+info.label):'';
   if(info){init();showTab(info.home)}else{pickRole('admin')}
 }
-function init(){liveDrafts={};purgeOldRequests();hdr();renderDraft();renderStockists();renderMap();renderSettings();renderStaff();renderDriveUI();$('results').innerHTML='';$('results').dataset.poid=''}
-window.addEventListener('storage',e=>{if(e.key!==KEY)return;S=load();purgeOldRequests();hdr();renderDriveUI();if(ROLE==='admin'||ROLE==='manager')renderRequests();if(ROLE)renderStaffHistory()});
+function init(){liveDrafts={};purgeOldRequests();hdr();renderDraft();renderStockists();renderMap();renderSettings();renderStaff();renderDriveUI();updateMsgBadges();$('results').innerHTML='';$('results').dataset.poid=''}
+window.addEventListener('storage',e=>{if(e.key!==KEY)return;S=load();purgeOldRequests();hdr();renderDriveUI();if(ROLE==='admin'||ROLE==='manager')renderRequests();if(ROLE){renderStaffHistory();if(!$('tab-msg').classList.contains('hide'))renderMessages()}});
 window.addEventListener('online',()=>{if(driveState==='error'||driveState==='pending')syncToDrive(true)});
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden'&&driveTimer)syncToDrive(true)});
 applyRole();
